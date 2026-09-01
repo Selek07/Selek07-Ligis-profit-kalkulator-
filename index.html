@@ -288,6 +288,18 @@
   .priority-corner.hidden{ display:none; }
   .priority-corner:hover{ background:#d97a55; }
 
+  .kpi-grid{
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; margin-bottom: 16px;
+  }
+  .kpi-card{
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px;
+  }
+  .kpi-v{ font-size: 24px; font-weight: 700; color: var(--wood); font-family: var(--mono); }
+  .kpi-k{ font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  .chart-wrap{ position:relative; height: 240px; }
+  .chart-wrap.small{ height: 220px; }
+
   .section-label{
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
     color: var(--wood-dim); font-weight: 600; margin-bottom: 12px;
@@ -390,6 +402,7 @@
 <div class="app-sidebar hidden" id="appSidebar">
   <button type="button" class="sidebar-btn active" data-view="calculatorView" title="Kalkulator">🧮</button>
   <button type="button" class="sidebar-btn" data-view="inquiriesView" title="Povpraševanja">📥</button>
+  <button type="button" class="sidebar-btn" data-view="insightsView" title="Vpogledi">📊</button>
   <button type="button" class="sidebar-btn logout" id="logoutBtn" title="Odjava">⏻</button>
 </div>
 
@@ -591,6 +604,43 @@
   </div>
 </div>
 
+<div id="insightsView" class="app-view hidden">
+  <div class="wrap">
+    <header>
+      <div class="kicker">STATISTIKA</div>
+      <h1>Vpogledi</h1>
+      <p>Pregled vseh povpraševanj skozi čas — koliko jih prihaja, kje so v procesu in kaj stranke največ izbirajo.</p>
+    </header>
+
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="kpi-card"><div class="kpi-v" id="kpiTotal">–</div><div class="kpi-k">Skupaj povpraševanj</div></div>
+      <div class="kpi-card"><div class="kpi-v" id="kpiNovo">–</div><div class="kpi-k">Novo (čaka)</div></div>
+      <div class="kpi-card"><div class="kpi-v" id="kpiObdelavi">–</div><div class="kpi-k">V obdelavi</div></div>
+      <div class="kpi-card"><div class="kpi-v" id="kpiZakljuceno">–</div><div class="kpi-k">Zaključeno</div></div>
+      <div class="kpi-card"><div class="kpi-v" id="kpiPriority">–</div><div class="kpi-k">Prednostnih (aktivnih)</div></div>
+      <div class="kpi-card"><div class="kpi-v" id="kpiAvgPrice">–</div><div class="kpi-k">Povprečna ocena cene</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Povpraševanja skozi čas (zadnjih 30 dni)</h2>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+
+    <div class="grid" style="gap:14px;">
+      <div class="panel">
+        <h2>Razčlenitev po statusu</h2>
+        <div class="chart-wrap small"><canvas id="statusChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <h2>Priljubljenost predlog</h2>
+        <div class="chart-wrap small"><canvas id="templateChart"></canvas></div>
+      </div>
+    </div>
+
+    <p class="note" id="insightsEmpty" style="display:none;">Še ni dovolj podatkov za statistiko.</p>
+  </div>
+</div>
+
 <div class="preview-modal hidden" id="previewModal">
   <button type="button" class="preview-modal-close" id="previewModalClose" title="Zapri">✕</button>
   <div class="preview-modal-inner preview-target" id="previewModalInner"></div>
@@ -599,6 +649,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
   // Firebase config from the Firebase console — public by design for a client-side
   // web app; access is controlled via Firestore security rules, not by secrecy.
@@ -1779,7 +1830,7 @@
   const loginScreen = $('loginScreen'), loginEmail = $('loginEmail'), loginPassword = $('loginPassword'),
         loginBtn = $('loginBtn'), loginMsg = $('loginMsg');
   const appSidebar = $('appSidebar'), logoutBtn = $('logoutBtn');
-  const views = { calculatorView: $('calculatorView'), inquiriesView: $('inquiriesView') };
+  const views = { calculatorView: $('calculatorView'), inquiriesView: $('inquiriesView'), insightsView: $('insightsView') };
   const inquiriesList = $('inquiriesList'), inquiriesEmpty = $('inquiriesEmpty');
   const priorityCorner = $('priorityCorner'), priorityCornerCount = $('priorityCornerCount');
   let priorityUnsub = null;
@@ -1788,6 +1839,7 @@
     Object.keys(views).forEach(k => views[k].classList.toggle('hidden', k !== id));
     appSidebar.querySelectorAll('.sidebar-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === id));
     if (id === 'inquiriesView') loadInquiries();
+    if (id === 'insightsView') loadInsights();
   }
   appSidebar.querySelectorAll('.sidebar-btn[data-view]').forEach(btn => {
     btn.addEventListener('click', () => showView(btn.dataset.view));
@@ -1933,6 +1985,125 @@
     } catch (err){
       inquiriesList.innerHTML = '<p class="note">Napaka pri nalaganju povpraševanj: ' + escapeHtmlLocal(err.message) + '</p>';
     }
+  }
+
+  // ---------- insights / analytics ----------
+  let trendChartInstance = null, statusChartInstance = null, templateChartInstance = null;
+  const CHART_COLORS = { wood:'#c88a4a', blue:'#5b8fc9', good:'#7ea36a', warn:'#c96b4a', dim:'#8f6538' };
+
+  function fmtEURLocal(n){ return n.toLocaleString('sl-SI', { minimumFractionDigits:0, maximumFractionDigits:0 }); }
+
+  async function loadInsights(){
+    const emptyMsg = $('insightsEmpty');
+    emptyMsg.style.display = 'none';
+    if (typeof Chart === 'undefined'){
+      emptyMsg.textContent = 'Chart.js se ni naložil (preveri internetno povezavo).';
+      emptyMsg.style.display = 'block';
+      return;
+    }
+    let docs;
+    try {
+      const snap = await firestoreDb.collection('inquiries').orderBy('createdAt', 'asc').get();
+      docs = snap.docs.map(d => d.data());
+    } catch (err){
+      emptyMsg.textContent = 'Napaka pri nalaganju statistike: ' + err.message;
+      emptyMsg.style.display = 'block';
+      return;
+    }
+    if (!docs.length){
+      emptyMsg.textContent = 'Še ni podatkov za statistiko — počakaj na prva povpraševanja.';
+      emptyMsg.style.display = 'block';
+      $('kpiTotal').textContent = '0'; $('kpiNovo').textContent = '0'; $('kpiObdelavi').textContent = '0';
+      $('kpiZakljuceno').textContent = '0'; $('kpiPriority').textContent = '0'; $('kpiAvgPrice').textContent = '–';
+      return;
+    }
+
+    // ---- KPI counts ----
+    const counts = { novo:0, 'v obdelavi':0, 'zaključeno':0 };
+    let activePriority = 0, estimateSum = 0, estimateN = 0;
+    const templateCounts = {};
+    docs.forEach(d => {
+      counts[d.status] = (counts[d.status] || 0) + 1;
+      if (d.priority && d.status !== 'zaključeno') activePriority++;
+      if (typeof d.estimateLow === 'number' && typeof d.estimateHigh === 'number'){
+        estimateSum += (d.estimateLow + d.estimateHigh) / 2; estimateN++;
+      }
+      const t = d.template || 'Neznano';
+      templateCounts[t] = (templateCounts[t] || 0) + 1;
+    });
+    $('kpiTotal').textContent = docs.length;
+    $('kpiNovo').textContent = counts['novo'] || 0;
+    $('kpiObdelavi').textContent = counts['v obdelavi'] || 0;
+    $('kpiZakljuceno').textContent = counts['zaključeno'] || 0;
+    $('kpiPriority').textContent = activePriority;
+    $('kpiAvgPrice').textContent = estimateN ? fmtEURLocal(estimateSum / estimateN) + ' €' : '–';
+
+    // ---- trend: inquiries per day, last 30 days ----
+    const days = [];
+    const now = new Date();
+    for (let i = 29; i >= 0; i--){
+      const d = new Date(now); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
+      days.push(d);
+    }
+    const dayCounts = days.map(() => 0);
+    docs.forEach(d => {
+      if (!d.createdAt || !d.createdAt.toDate) return;
+      const dt = d.createdAt.toDate(); dt.setHours(0,0,0,0);
+      const idx = days.findIndex(day => day.getTime() === dt.getTime());
+      if (idx >= 0) dayCounts[idx]++;
+    });
+    const dayLabels = days.map(d => d.toLocaleDateString('sl-SI', { day:'2-digit', month:'2-digit' }));
+
+    if (trendChartInstance) trendChartInstance.destroy();
+    trendChartInstance = new Chart($('trendChart'), {
+      type: 'bar',
+      data: { labels: dayLabels, datasets: [{ label: 'Povpraševanja', data: dayCounts, backgroundColor: CHART_COLORS.wood, borderRadius: 3 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { ticks: { color:'#a39c8c', maxRotation:0, autoSkip:true, maxTicksLimit:10 }, grid: { color:'#34322b' } },
+          y: { ticks: { color:'#a39c8c', precision:0 }, grid: { color:'#34322b' }, beginAtZero:true }
+        },
+        plugins: { legend: { display:false } }
+      }
+    });
+
+    // ---- status breakdown doughnut ----
+    if (statusChartInstance) statusChartInstance.destroy();
+    statusChartInstance = new Chart($('statusChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Novo', 'V obdelavi', 'Zaključeno'],
+        datasets: [{
+          data: [counts['novo']||0, counts['v obdelavi']||0, counts['zaključeno']||0],
+          backgroundColor: [CHART_COLORS.wood, CHART_COLORS.blue, CHART_COLORS.good],
+          borderColor: '#2b2a25', borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position:'bottom', labels: { color:'#ece7dc', font: { size:11 } } } }
+      }
+    });
+
+    // ---- template popularity bar ----
+    const templateEntries = Object.entries(templateCounts).sort((a,b) => b[1]-a[1]);
+    if (templateChartInstance) templateChartInstance.destroy();
+    templateChartInstance = new Chart($('templateChart'), {
+      type: 'bar',
+      data: {
+        labels: templateEntries.map(e => e[0]),
+        datasets: [{ label: 'Izbrano', data: templateEntries.map(e => e[1]), backgroundColor: CHART_COLORS.dim, borderRadius: 3 }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { ticks: { color:'#a39c8c', precision:0 }, grid: { color:'#34322b' }, beginAtZero:true },
+          y: { ticks: { color:'#a39c8c', font:{size:11} }, grid: { display:false } }
+        },
+        plugins: { legend: { display:false } }
+      }
+    });
   }
 })();
 </script>
