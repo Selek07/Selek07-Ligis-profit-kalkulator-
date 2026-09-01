@@ -236,7 +236,7 @@
           <button type="button" class="btn-outline" id="savePreset">Shrani preset</button>
           <button type="button" class="btn-outline warn" id="deletePreset">Izbriši</button>
         </div>
-        <p class="note" style="margin-top:8px;">Preseti se trajno shranijo — znotraj Claude.ai v tem pogovoru, ali (če datoteko odpreš samostojno oz. gostiš na svoji strani) lokalno v tvojem brskalniku.</p>
+        <p class="note" style="margin-top:8px;">Preseti se sinhronizirajo prek spleta — vidiš jih na vsaki napravi, kjer odpreš ta link.</p>
       </div>
     </div>
 
@@ -351,14 +351,36 @@
 
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  // Firebase config from the Firebase console — public by design for a client-side
+  // web app; access is controlled via Firestore security rules, not by secrecy.
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxF_AR2rlWpNUuXoKbutNtmS_hhehBcsY",
+    authDomain: "ligis-kalkulator.firebaseapp.com",
+    projectId: "ligis-kalkulator",
+    storageBucket: "ligis-kalkulator.firebasestorage.app",
+    messagingSenderId: "541619453249",
+    appId: "1:541619453249:web:0bcaac48e7d5db072775c0",
+    measurementId: "G-7WLG95L7YX"
+  };
+  let firestoreDb = null;
+  try {
+    firebase.initializeApp(firebaseConfig);
+    firestoreDb = firebase.firestore();
+  } catch (e){ console.error('Firebase init failed:', e); }
+</script>
 <script>
 (function(){
   const $ = id => document.getElementById(id);
 
   // ---------- persistent storage ----------
-  // Uses Claude's artifact storage when running inside Claude.ai; otherwise
-  // falls back to the browser's localStorage (works when this file is opened
-  // directly, downloaded, or hosted on your own site).
+  // Priority: Firestore (syncs across every device) → Claude's artifact storage
+  // (when running inside Claude.ai) → browser localStorage (last resort, per device).
+  const FS_COLLECTION = 'kalkulator', FS_DOC = 'shared-data';
+
+  function hasFirestore(){ return !!firestoreDb; }
   function hasClaudeStorage(){
     return typeof window !== 'undefined' && !!window.storage;
   }
@@ -366,6 +388,15 @@
     try { return typeof localStorage !== 'undefined'; } catch(e){ return false; }
   }
   async function storageGet(key){
+    if (hasFirestore()){
+      try {
+        const snap = await firestoreDb.collection(FS_COLLECTION).doc(FS_DOC).get();
+        if (snap.exists){
+          const data = snap.data();
+          if (data && data[key] !== undefined) return data[key];
+        }
+      } catch (e){ console.error('Firestore get failed, falling back:', e); }
+    }
     if (hasClaudeStorage()){
       try {
         const res = await window.storage.get(key, false);
@@ -378,6 +409,12 @@
     return null;
   }
   async function storageSet(key, value){
+    if (hasFirestore()){
+      try {
+        await firestoreDb.collection(FS_COLLECTION).doc(FS_DOC).set({ [key]: value }, { merge: true });
+        return;
+      } catch (e){ console.error('Firestore set failed, falling back:', e); }
+    }
     if (hasClaudeStorage()){
       try { await window.storage.set(key, value, false); return; } catch (e){ /* fall through */ }
     }
