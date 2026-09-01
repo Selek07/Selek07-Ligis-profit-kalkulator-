@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kalkulator porabe lesa</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#21201c">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kalk. lesa">
 <style>
   :root{
     --bg: #21201c;
@@ -124,8 +132,6 @@
   }
   select:focus{ outline: none; border-color: var(--wood-dim); }
 
-  .preset-box{ margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
-  .preset-actions{ display:flex; gap: 8px; margin-top: 10px; }
   .btn-outline{
     flex:1; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
     padding: 8px 10px; border-radius: 4px; font-size: 12.5px; cursor:pointer;
@@ -190,6 +196,69 @@
     background:none; border:none; color: var(--text-dim); cursor:pointer; font-size: 16px; line-height:1;
   }
   .markup-row .mr-remove:hover{ color: var(--warn); }
+
+  .section-label{
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--wood-dim); font-weight: 600; margin-bottom: 12px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .section-label-sub{
+    display:block; text-transform:none; letter-spacing:normal; font-weight: 400;
+    color: var(--text-dim); font-size: 11px; margin-top: 3px;
+  }
+
+  .preset-mini{
+    display: grid; grid-template-columns: 1fr 1fr auto auto;
+    gap: 6px; margin-top: 10px;
+  }
+  .preset-mini select, .preset-mini input[type=text]{
+    padding: 6px 7px; font-size: 12px; border-radius: 3px;
+  }
+  .preset-mini button{
+    width: 30px; height: 30px; flex: none; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 3px; cursor:pointer; font-size: 13px;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .preset-mini button:hover{ border-color: var(--wood-dim); }
+
+  .preview-wrap{ position: relative; }
+  .preview-expand{
+    position: absolute; top: 8px; right: 8px; z-index: 2;
+    width: 30px; height: 30px; background: rgba(33,32,28,0.85); border: 1px solid var(--line);
+    border-radius: 4px; color: var(--text-dim); cursor: pointer; font-size: 15px;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .preview-expand:hover{ border-color: var(--wood-dim); color: var(--wood); }
+
+  .preview-modal{
+    position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.88);
+    display:flex; align-items:center; justify-content:center; padding: 24px;
+  }
+  .preview-modal.hidden{ display:none; }
+  .preview-modal-inner{
+    width: 100%; height: 100%; max-width: 1100px; max-height: 900px;
+    aspect-ratio: 360 / 300; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; display:flex; align-items:center; justify-content:center;
+    padding: 16px;
+  }
+  .preview-modal-inner svg{ width: 100%; height: 100%; }
+  .preview-modal-close{
+    position: absolute; top: 18px; right: 18px; width: 40px; height: 40px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 50%;
+    color: var(--text); font-size: 18px; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; padding:0; z-index: 2;
+  }
+  .preview-modal-close:hover{ border-color: var(--wood-dim); color: var(--wood); }
+
+  /* Phones: use the full screen and prefer landscape for a bigger work area */
+  @media (max-width: 640px){
+    .preview{ min-height: 220px; }
+    .preview-modal{ padding: 10px; }
+    .preview-modal-inner{ max-width: none; max-height: none; aspect-ratio: auto; padding: 8px; }
+  }
+  @media (max-width: 640px) and (orientation: landscape){
+    .preview-modal-inner{ height: calc(100vh - 20px); width: calc(100vh - 20px); max-width: 100vw; }
+  }
 </style>
 </head>
 <body>
@@ -198,13 +267,13 @@
   <header>
     <div class="kicker">CNC LASER · LES</div>
     <h1>Kalkulator porabe lesa</h1>
-    <p>Vnesi ceno in mere plošče, uvozi DXF z izrezom, orodje pa nariše cel outline v razmerju do plošče in preračuna strošek glede na dejansko površino izreza.</p>
+    <p>Cena/mere nabavne plošče so referenca za izračun stroška; mere delovne površine laserja določajo predogled in razporeditev uvoženih DXF kosov.</p>
   </header>
 
   <div class="grid">
 
     <div class="panel">
-      <h2>Plošča materiala</h2>
+      <div class="section-label">Nabavna plošča <span class="section-label-sub">— samo referenca za izračun cene, ni prikazana v predogledu</span></div>
       <div class="field">
         <label for="sheetPrice">Cena plošče <span class="unit">EUR</span></label>
         <input type="number" id="sheetPrice" placeholder="npr. 45.00" step="0.01" min="0">
@@ -212,11 +281,11 @@
       <div class="row2">
         <div class="field">
           <label for="sheetW">Širina <span class="unit">mm</span></label>
-          <input type="number" id="sheetW" placeholder="1220" step="1" min="0">
+          <input type="number" id="sheetW" placeholder="1220" step="1" min="0" value="2500">
         </div>
         <div class="field">
           <label for="sheetH">Višina <span class="unit">mm</span></label>
-          <input type="number" id="sheetH" placeholder="2440" step="1" min="0">
+          <input type="number" id="sheetH" placeholder="2440" step="1" min="0" value="1250">
         </div>
       </div>
       <div class="field" style="margin-bottom:0">
@@ -224,19 +293,25 @@
         <input type="number" id="sheetT" placeholder="npr. 6" step="0.1" min="0">
       </div>
 
-      <div class="preset-box">
-        <label for="presetSelect">Preseti plošč</label>
-        <div class="row2">
-          <select id="presetSelect">
-            <option value="">— izberi preset —</option>
-          </select>
-          <input type="text" id="presetName" placeholder="ime presetа, npr. Breza 6mm">
+      <div class="preset-mini">
+        <select id="presetSelect">
+          <option value="">— preset —</option>
+        </select>
+        <input type="text" id="presetName" placeholder="ime">
+        <button type="button" id="savePreset" title="Shrani preset">💾</button>
+        <button type="button" id="deletePreset" title="Izbriši preset">🗑</button>
+      </div>
+
+      <div class="section-label" style="margin-top:18px;">Delovna površina laserja <span class="section-label-sub">— mere, ki jih laser dejansko reže; uporabljeno za predogled in razporeditev</span></div>
+      <div class="row2" style="margin-bottom:0;">
+        <div class="field" style="margin-bottom:0;">
+          <label for="bedW">Širina <span class="unit">mm</span></label>
+          <input type="number" id="bedW" placeholder="npr. 600" step="1" min="0" value="900">
         </div>
-        <div class="preset-actions">
-          <button type="button" class="btn-outline" id="savePreset">Shrani preset</button>
-          <button type="button" class="btn-outline warn" id="deletePreset">Izbriši</button>
+        <div class="field" style="margin-bottom:0;">
+          <label for="bedH">Višina <span class="unit">mm</span></label>
+          <input type="number" id="bedH" placeholder="npr. 400" step="1" min="0" value="500">
         </div>
-        <p class="note" style="margin-top:8px;">Preseti se sinhronizirajo prek spleta — vidiš jih na vsaki napravi, kjer odpreš ta link.</p>
       </div>
     </div>
 
@@ -265,13 +340,16 @@
 
     <div class="grid" style="gap:16px;">
       <div>
-        <div class="preview" id="preview"></div>
+        <div class="preview-wrap">
+          <div class="preview preview-target" id="preview"></div>
+          <button type="button" class="preview-expand" id="previewExpand" title="Poglej čez cel zaslon">⛶</button>
+        </div>
         <div class="preview-legend">
           <span><i class="swatch" style="background:rgba(200,138,74,0.28); border:1px solid #c88a4a;"></i>DXF outline</span>
           <span id="legendBox" style="display:none;"><i class="swatch" style="background:rgba(91,143,201,0.15); border:1px solid #5b8fc9;"></i>Box</span>
-          <span><i class="swatch" style="background:transparent; border:1px dashed #46443a;"></i>Plošča</span>
+          <span><i class="swatch" style="background:transparent; border:1px dashed #46443a;"></i>Delovna površina</span>
         </div>
-        <div class="warnbox" id="overflowWarn">Izrez je večji od vnesene plošče na vsaj eni stranici — ne gre nanjo v enem kosu.</div>
+        <div class="warnbox" id="overflowWarn">Izrez je večji od delovne površine na vsaj eni stranici — ne gre nanjo v enem kosu.</div>
         <div class="parts-breakdown" id="partsBreakdown"></div>
       </div>
       <div>
@@ -284,7 +362,7 @@
           <div class="v" id="rShapeArea">–</div>
         </div>
         <div class="stat-row">
-          <div class="k">Delež površine plošče</div>
+          <div class="k">Delež nabavne plošče</div>
           <div class="v" id="rShare">–</div>
         </div>
         <div class="bar"><div id="rBar" style="width:0%"></div></div>
@@ -349,6 +427,11 @@
     <p class="note">Privzeti odstotki so nastavljeni tako, da za manjši custom kos (materialni stroški nekje 1,5–2 €, kot pri tvojem pokalu) prodajna cena pride do okoli 15 €. "Sklad za amortizacijo / vzdrževanje stroja" ni tekoč strošek obratovanja, ampak del denarja, ki gre na stran za servis, popravila in dolgoročno zamenjavo stroja (npr. pri strojih vrednosti ~7.000 € to hitro nanese) — po potrebi ga uskladi glede na to, koliko kosov na leto realno izdelaš in kdaj pričakuješ zamenjavo stroja. Delo/čas in znanje pri custom izdelkih po meri odtehtata precej več kot sam material. Vsaka postavka se izračuna kot % materialnih stroškov in se prišteje k prodajni ceni; davek se obračuna na vsoto teh postavk (dobiček pred davkom), ne na materialne stroške. Za druge izdelke (večje plošče, serijska proizvodnja …) odstotke prilagodi — pri večjem materialnem strošku bodo enaki % dali sorazmerno višjo maržo, zato jih po potrebi zniža.</p>
   </div>
 
+</div>
+
+<div class="preview-modal hidden" id="previewModal">
+  <button type="button" class="preview-modal-close" id="previewModalClose" title="Zapri">✕</button>
+  <div class="preview-modal-inner preview-target" id="previewModalInner"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -424,6 +507,7 @@
   }
 
   const sheetPrice = $('sheetPrice'), sheetW = $('sheetW'), sheetH = $('sheetH'), sheetT = $('sheetT');
+  const bedW = $('bedW'), bedH = $('bedH');
   const dropzone = $('dropzone'), fileInput = $('fileInput'), fileListEl = $('fileList'), addFileBtn = $('addFileBtn'), errbox = $('errbox');
   const results = $('results'), preview = $('preview'), overflowWarn = $('overflowWarn'), partsBreakdown = $('partsBreakdown'), dragHint = $('dragHint');
   const presetSelect = $('presetSelect'), presetName = $('presetName'), savePresetBtn = $('savePreset'), deletePresetBtn = $('deletePreset');
@@ -797,6 +881,7 @@
 
   function attachDragHandlers(svgEl){
     if (!svgEl) return;
+    const container = svgEl.parentElement;
     svgEl.querySelectorAll('.part-group').forEach(g => {
       g.addEventListener('pointerdown', e => {
         e.preventDefault();
@@ -808,7 +893,8 @@
           startXmm: part.xmm,
           startYmm: part.ymm,
           startSvg: screenToSvg(svgEl, e.clientX, e.clientY),
-          svgEl
+          svgEl,
+          container
         };
       });
     });
@@ -816,7 +902,10 @@
 
   document.addEventListener('pointermove', e => {
     if (!dragState) return;
-    const cur = screenToSvg(dragState.svgEl, e.clientX, e.clientY);
+    const liveSvg = dragState.svgEl.isConnected ? dragState.svgEl : dragState.container.querySelector('svg');
+    if (!liveSvg) return;
+    dragState.svgEl = liveSvg;
+    const cur = screenToSvg(liveSvg, e.clientX, e.clientY);
     const part = parts.find(p => p.id === dragState.partId);
     if (!part) return;
     part.xmm = dragState.startXmm + (cur.x - dragState.startSvg.x) / currentScale;
@@ -829,7 +918,7 @@
   // ---------- preview rendering (all loaded parts) ----------
   function drawPreview(){
     const W = 360, H = 300, pad = 14;
-    const sw = parseFloat(sheetW.value), sh = parseFloat(sheetH.value);
+    const sw = parseFloat(bedW.value), sh = parseFloat(bedH.value);
     const hasSheet = sw > 0 && sh > 0;
     overflowWarn.style.display = 'none';
     dragHint.style.display = (hasSheet && parts.length) ? 'block' : 'none';
@@ -905,7 +994,7 @@
 
       preview.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         ${groups}
-        <text x="${W/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="#a39c8c" font-family="sans-serif">Vnesi širino in višino plošče za prikaz razmerja in prestavljanje</text>
+        <text x="${W/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="#a39c8c" font-family="sans-serif">Vnesi širino in višino delovne površine za prikaz razmerja in prestavljanje</text>
       </svg>`;
     }
   }
@@ -966,7 +1055,7 @@
 
   // ---------- part management ----------
   function assignPosition(part){
-    const sw = parseFloat(sheetW.value), sh = parseFloat(sheetH.value);
+    const sw = parseFloat(bedW.value), sh = parseFloat(bedH.value);
     if (sw > 0 && sh > 0){
       const margin = Math.max(sw, sh) * 0.02;
       if (!parts.length){ part.xmm = margin; part.ymm = margin; return; }
@@ -1060,7 +1149,7 @@
     if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   });
 
-  [sheetPrice, sheetW, sheetH, sheetT].forEach(inp => inp.addEventListener('input', calcAndRender));
+  [sheetPrice, sheetW, sheetH, sheetT, bedW, bedH].forEach(inp => inp.addEventListener('input', calcAndRender));
 
   // ---------- calc mode toggle ----------
   modeButtons.forEach(btn => btn.addEventListener('click', () => {
@@ -1202,6 +1291,12 @@
       } catch(e){}
     }
   })();
+
+  if ('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(e => console.error('SW registracija ni uspela:', e));
+    });
+  }
 
 })();
 </script>
