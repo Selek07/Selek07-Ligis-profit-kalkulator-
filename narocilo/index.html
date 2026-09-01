@@ -199,7 +199,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
   // Same Firebase project as the internal calculator app.
   const firebaseConfig = {
@@ -214,12 +213,6 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   const storage = firebase.storage();
-
-  // ---- EmailJS (Gmail "selnejc07@gmail.com" service) ----
-  const EMAILJS_PUBLIC_KEY = 'd_8Lv-N4YHCjTubXx';
-  const EMAILJS_SERVICE_ID = 'service_w2fe6be';
-  const EMAILJS_TEMPLATE_ID = 'template_w1xh3bd';
-  try { if (window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch(e){}
 
   // ---- rough estimate pricing (edit these to match your real numbers) ----
   const DEFAULT_PRICE_PER_M2 = 15.56; // EUR/m², matches the ~2500x1250 sheet example
@@ -333,22 +326,10 @@
         await docRef.update({ imageUrls });
       }
 
-      try {
-        if (window.emailjs && EMAILJS_SERVICE_ID !== 'TODO_SERVICE_ID'){
-          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-            customer_name: custName,
-            customer_email: custEmail,
-            customer_phone: $('custPhone').value.trim(),
-            template: selectedTemplate,
-            wish_name: $('wishName').value.trim(),
-            dimensions: `${wishW.value || '?'} x ${wishH.value || '?'} cm`,
-            description: $('wishDesc').value.trim(),
-            estimate: estimateValue.textContent,
-            priority: priorityCheck.checked ? '⚡ DA - PREDNOSTNO NAROČILO' : 'ne',
-            image_count: imageUrls.length
-          });
-        }
-      } catch (emailErr){ console.error('EmailJS send failed (order was still saved):', emailErr); }
+      // No separate "notify me" email here — the admin dashboard (Povpraševanja /
+      // the live priority corner badge) already surfaces new inquiries in real time,
+      // and the free EmailJS plan only allows 2 templates (used for the price-reply
+      // and design-preview-approval emails instead).
 
       msgBox.className = 'msgbox success';
       msgBox.textContent = 'Povpraševanje poslano! Javim se ti čim prej z dokončno ponudbo.';
