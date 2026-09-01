@@ -244,14 +244,15 @@
 
   function fmtEUR(n){ return n.toLocaleString('sl-SI', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
 
+  let lastEstimateLow = null, lastEstimateHigh = null;
   function updateEstimate(){
     const w = parseFloat(wishW.value), h = parseFloat(wishH.value);
-    if (!(w > 0 && h > 0)){ estimateValue.textContent = 'vnesi mere zgoraj'; return; }
+    if (!(w > 0 && h > 0)){ estimateValue.textContent = 'vnesi mere zgoraj'; lastEstimateLow = lastEstimateHigh = null; return; }
     const areaM2 = (w/100) * (h/100); // cm -> m
     const base = areaM2 * DEFAULT_PRICE_PER_M2 * DEFAULT_MARKUP_FACTOR;
-    const surcharge = priorityCheck.checked ? 7.5 : 0; // midpoint of the +5-10€ rush surcharge
     const low = Math.max(3, base * 0.75) + (priorityCheck.checked ? 5 : 0);
     const high = base * 1.35 + (priorityCheck.checked ? 10 : 0);
+    lastEstimateLow = low; lastEstimateHigh = high;
     estimateValue.textContent = `${fmtEUR(low)}–${fmtEUR(high)} €` + (priorityCheck.checked ? ' ⚡' : '');
   }
   wishW.addEventListener('input', updateEstimate);
@@ -315,6 +316,8 @@
         heightCm: parseFloat(wishH.value) || null,
         description: $('wishDesc').value.trim(),
         estimateText: estimateValue.textContent,
+        estimateLow: lastEstimateLow,
+        estimateHigh: lastEstimateHigh,
         priority: priorityCheck.checked,
         customerName: custName,
         customerEmail: custEmail,
