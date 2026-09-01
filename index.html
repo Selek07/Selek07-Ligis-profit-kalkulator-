@@ -2186,7 +2186,12 @@
     orderModalBody.innerHTML = `
       <h2 style="margin-top:0;">${escapeHtmlLocal(d.customerName || '—')}</h2>
       <div class="irow"><span class="k">Kontakt:</span>${escapeHtmlLocal(d.customerEmail)}${d.customerPhone ? ' · ' + escapeHtmlLocal(d.customerPhone) : ''}</div>
+      ${(d.widthCm || d.heightCm) ? `<div class="irow"><span class="k">Mere:</span>${d.widthCm||'?'} × ${d.heightCm||'?'} cm</div>` : ''}
       ${d.description ? `<div class="irow"><span class="k">Opis:</span>${escapeHtmlLocal(d.description)}</div>` : ''}
+      ${(d.imageUrls && d.imageUrls.length) ? `
+        <div class="irow"><span class="k">Referenčne slike od stranke:</span></div>
+        <div class="iimages">${d.imageUrls.map(u => `<img src="${u}" onclick="window.open('${u}','_blank')">`).join('')}</div>
+      ` : ''}
 
       ${d.approved
         ? `<div class="order-approved-banner">✓ Stranka je odobrila design${d.approvedAt ? ' — ' + tlDate(d.approvedAt) : ''}. Lahko gre v rezanje.</div>`
