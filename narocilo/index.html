@@ -95,6 +95,11 @@
   .msgbox{ border-radius: 5px; padding: 12px 14px; font-size: 13.5px; margin-top: 12px; display:none; }
   .msgbox.success{ background: rgba(126,163,106,0.12); border: 1px solid var(--good); color: var(--good); display:block; }
   .msgbox.error{ background: rgba(201,107,74,0.1); border: 1px solid var(--warn); color: var(--warn); display:block; }
+
+  .priority-check{
+    display:flex; align-items:flex-start; gap: 10px; cursor:pointer; font-size: 14px;
+  }
+  .priority-check input{ width:18px; height:18px; margin-top: 2px; flex:none; accent-color: var(--warn); }
 </style>
 </head>
 <body>
@@ -155,6 +160,12 @@
 
   <div class="panel">
     <h2>4. Groba ocena cene</h2>
+    <div class="field" style="margin-bottom:12px;">
+      <label class="priority-check">
+        <input type="checkbox" id="priorityCheck">
+        <span>⚡ Prednostno naročilo <span class="unit">(+5–10 €, gre takoj v izdelavo brez čakanja v vrsti)</span></span>
+      </label>
+    </div>
     <div class="estimate-box">
       <div class="k">Okvirna cena (na podlagi vnesenih mer)</div>
       <div class="v" id="estimateValue">vnesi mere zgoraj</div>
@@ -220,7 +231,7 @@
   const $ = id => document.getElementById(id);
   const gallery = $('gallery'), wishW = $('wishW'), wishH = $('wishH'), estimateValue = $('estimateValue');
   const dropzone = $('dropzone'), fileInput = $('fileInput'), imgList = $('imgList');
-  const submitBtn = $('submitBtn'), msgBox = $('msgBox');
+  const submitBtn = $('submitBtn'), msgBox = $('msgBox'), priorityCheck = $('priorityCheck');
 
   gallery.querySelectorAll('.gallery-item').forEach(el => {
     el.addEventListener('click', () => {
@@ -238,11 +249,14 @@
     if (!(w > 0 && h > 0)){ estimateValue.textContent = 'vnesi mere zgoraj'; return; }
     const areaM2 = (w/100) * (h/100); // cm -> m
     const base = areaM2 * DEFAULT_PRICE_PER_M2 * DEFAULT_MARKUP_FACTOR;
-    const low = Math.max(3, base * 0.75), high = base * 1.35;
-    estimateValue.textContent = `${fmtEUR(low)}–${fmtEUR(high)} €`;
+    const surcharge = priorityCheck.checked ? 7.5 : 0; // midpoint of the +5-10€ rush surcharge
+    const low = Math.max(3, base * 0.75) + (priorityCheck.checked ? 5 : 0);
+    const high = base * 1.35 + (priorityCheck.checked ? 10 : 0);
+    estimateValue.textContent = `${fmtEUR(low)}–${fmtEUR(high)} €` + (priorityCheck.checked ? ' ⚡' : '');
   }
   wishW.addEventListener('input', updateEstimate);
   wishH.addEventListener('input', updateEstimate);
+  priorityCheck.addEventListener('change', updateEstimate);
 
   function renderImgList(){
     imgList.innerHTML = uploadedImages.map((img,i) => `
@@ -301,6 +315,7 @@
         heightCm: parseFloat(wishH.value) || null,
         description: $('wishDesc').value.trim(),
         estimateText: estimateValue.textContent,
+        priority: priorityCheck.checked,
         customerName: custName,
         customerEmail: custEmail,
         customerPhone: $('custPhone').value.trim(),
@@ -326,6 +341,7 @@
             dimensions: `${wishW.value || '?'} x ${wishH.value || '?'} cm`,
             description: $('wishDesc').value.trim(),
             estimate: estimateValue.textContent,
+            priority: priorityCheck.checked ? '⚡ DA - PREDNOSTNO NAROČILO' : 'ne',
             image_count: imageUrls.length
           });
         }
