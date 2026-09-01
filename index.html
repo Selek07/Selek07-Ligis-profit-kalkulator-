@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalkulator porabe lesa</title>
+<style>
+  :root{
+    --bg: #21201c;
+    --panel: #2b2a25;
+    --panel-2: #34322b;
+    --line: #46443a;
+    --wood: #c88a4a;
+    --wood-dim: #8f6538;
+    --text: #ece7dc;
+    --text-dim: #a39c8c;
+    --good: #7ea36a;
+    --warn: #c96b4a;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  body{ padding: 28px 18px 60px; }
+  .wrap{ max-width: 920px; margin: 0 auto; }
+
+  header{ margin-bottom: 26px; }
+  header .kicker{
+    color: var(--wood); font-family: var(--mono); font-size: 12.5px;
+    letter-spacing: 0.02em; margin-bottom: 6px;
+  }
+  header h1{ font-size: 26px; font-weight: 650; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p{ color: var(--text-dim); margin:0; font-size: 14.5px; max-width: 62ch; }
+
+  .grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 660px){ .grid{ grid-template-columns: 1fr; } }
+
+  .panel{
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px;
+  }
+  .panel h2{ font-size: 13px; margin: 0 0 14px; color: var(--text-dim); font-weight: 600; }
+
+  label{ display:block; font-size: 13px; color: var(--text-dim); margin-bottom: 5px; }
+  .field{ margin-bottom: 14px; }
+  .row2{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  input[type=number], input[type=text]{
+    width:100%; background: var(--bg); border: 1px solid var(--line);
+    color: var(--text); padding: 9px 10px; border-radius: 4px; font-size: 14.5px;
+    font-family: var(--mono);
+  }
+  input:focus{ outline: none; border-color: var(--wood-dim); }
+  .unit{ color: var(--text-dim); font-size: 12.5px; margin-left: 6px; }
+
+  .dropzone{
+    border: 1.5px dashed var(--line); border-radius: 6px; padding: 26px 16px;
+    text-align:center; cursor:pointer; transition: border-color .15s, background .15s;
+    margin-top: 4px;
+  }
+  .dropzone:hover, .dropzone.drag{ border-color: var(--wood); background: rgba(200,138,74,0.06); }
+  .dropzone .big{ font-size: 14.5px; margin-bottom: 4px; }
+  .dropzone .small{ font-size: 12.5px; color: var(--text-dim); }
+  .dropzone input{ display:none; }
+
+  .filename{
+    margin-top: 10px; font-family: var(--mono); font-size: 12.5px; color: var(--wood);
+    word-break: break-all; display:none;
+  }
+
+  .full{ grid-column: 1 / -1; }
+
+  .results{ margin-top: 14px; }
+  .results.hidden{ display:none; }
+
+  .preview{
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 12px;
+    min-height: 280px;
+  }
+  .preview svg{ max-width:100%; max-height: 340px; }
+  .preview-legend{
+    display:flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--text-dim);
+  }
+  .preview-legend span{ display:flex; align-items:center; gap: 6px; }
+  .swatch{ width: 12px; height: 12px; border-radius: 2px; display:inline-block; }
+
+  .stat-row{
+    display:flex; justify-content: space-between; align-items:baseline;
+    padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+  }
+  .stat-row:last-child{ border-bottom:none; }
+  .stat-row .k{ color: var(--text-dim); }
+  .stat-row .v{ font-family: var(--mono); }
+
+  .stat-row.hero{ padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .stat-row.hero .k{ font-size: 14px; }
+  .stat-row.hero .v{ font-size: 22px; color: var(--wood); font-weight: 600; }
+
+  .bar{
+    height: 8px; border-radius: 4px; background: var(--panel-2); overflow:hidden;
+    margin: 4px 0 12px; border: 1px solid var(--line);
+  }
+  .bar > div{ height: 100%; background: var(--wood); }
+
+  .note{ font-size: 12.5px; color: var(--text-dim); margin-top: 10px; line-height: 1.5; }
+
+  .errbox{
+    background: rgba(201,107,74,0.1); border: 1px solid var(--warn); color: var(--warn);
+    border-radius: 5px; padding: 10px 12px; font-size: 13px; margin-top: 10px; display:none;
+  }
+  .warnbox{
+    background: rgba(201,107,74,0.1); border: 1px solid var(--warn); color: var(--warn);
+    border-radius: 5px; padding: 8px 12px; font-size: 12.5px; margin-top: 10px; display:none;
+  }
+
+  select{
+    width:100%; background: var(--bg); border: 1px solid var(--line);
+    color: var(--text); padding: 9px 10px; border-radius: 4px; font-size: 13.5px;
+    font-family: var(--sans);
+  }
+  select:focus{ outline: none; border-color: var(--wood-dim); }
+
+  .preset-box{ margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .preset-actions{ display:flex; gap: 8px; margin-top: 10px; }
+  .btn-outline{
+    flex:1; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    padding: 8px 10px; border-radius: 4px; font-size: 12.5px; cursor:pointer;
+    font-family: var(--sans); transition: border-color .15s, color .15s;
+  }
+  .btn-outline:hover{ border-color: var(--wood-dim); color: var(--wood); }
+  .btn-outline.warn:hover{ border-color: var(--warn); color: var(--warn); }
+
+  .mode-toggle{ display:flex; gap: 6px; margin-bottom: 16px; }
+  .mode-btn{
+    flex:1; background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    padding: 9px 8px; border-radius: 4px; font-size: 12.5px; cursor:pointer;
+    font-family: var(--sans); text-align:center; transition: border-color .15s, color .15s, background .15s;
+  }
+  .mode-btn.active{ background: rgba(200,138,74,0.14); border-color: var(--wood-dim); color: var(--wood); }
+
+  .file-list{ margin-top: 10px; display:flex; flex-direction:column; gap: 6px; }
+  .file-item{
+    display:flex; align-items:center; justify-content:space-between; gap: 8px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+    padding: 7px 10px; font-size: 12.5px;
+  }
+  .file-item .fname{
+    font-family: var(--mono); color: var(--wood); overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; display:flex; align-items:center; gap: 7px;
+  }
+  .file-item .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .file-item button{
+    background:none; border:none; color: var(--text-dim); cursor:pointer; font-size: 15px;
+    line-height:1; padding: 2px 4px;
+  }
+  .file-item button:hover{ color: var(--warn); }
+
+  .add-file-btn{
+    width:100%; margin-top: 10px; background: var(--panel-2); border: 1px dashed var(--line);
+    color: var(--text-dim); padding: 9px; border-radius: 4px; font-size: 13px; cursor:pointer;
+    font-family: var(--sans);
+  }
+  .add-file-btn:hover{ border-color: var(--wood-dim); color: var(--wood); }
+  .add-file-btn.hidden{ display:none; }
+
+  .parts-breakdown{ margin-top: 10px; display:flex; flex-direction:column; gap: 5px; }
+  .parts-breakdown .prow{
+    display:flex; align-items:center; justify-content:space-between; gap: 8px;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .parts-breakdown .prow .pname{ display:flex; align-items:center; gap:6px; overflow:hidden; }
+  .parts-breakdown .prow .dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .parts-breakdown .prow .pname span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .parts-breakdown .prow .pval{ font-family: var(--mono); color: var(--text); flex:none; }
+
+  #markupRows{ display:flex; flex-direction:column; gap: 8px; margin-top: 8px; }
+  .markup-row{
+    display:grid; grid-template-columns: 1fr 64px 90px 22px; gap: 8px; align-items:center;
+  }
+  .markup-row input[type=text]{ padding: 8px 9px; font-size: 13px; }
+  .markup-row input[type=number]{ padding: 8px 6px; text-align:center; }
+  .markup-row .mr-amount{
+    font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); text-align:right;
+  }
+  .markup-row .mr-remove{
+    background:none; border:none; color: var(--text-dim); cursor:pointer; font-size: 16px; line-height:1;
+  }
+  .markup-row .mr-remove:hover{ color: var(--warn); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">CNC LASER · LES</div>
+    <h1>Kalkulator porabe lesa</h1>
+    <p>Vnesi ceno in mere plošče, uvozi DXF z izrezom, orodje pa nariše cel outline v razmerju do plošče in preračuna strošek glede na dejansko površino izreza.</p>
+  </header>
+
+  <div class="grid">
+
+    <div class="panel">
+      <h2>Plošča materiala</h2>
+      <div class="field">
+        <label for="sheetPrice">Cena plošče <span class="unit">EUR</span></label>
+        <input type="number" id="sheetPrice" placeholder="npr. 45.00" step="0.01" min="0">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="sheetW">Širina <span class="unit">mm</span></label>
+          <input type="number" id="sheetW" placeholder="1220" step="1" min="0">
+        </div>
+        <div class="field">
+          <label for="sheetH">Višina <span class="unit">mm</span></label>
+          <input type="number" id="sheetH" placeholder="2440" step="1" min="0">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label for="sheetT">Debelina <span class="unit">mm</span></label>
+        <input type="number" id="sheetT" placeholder="npr. 6" step="0.1" min="0">
+      </div>
+
+      <div class="preset-box">
+        <label for="presetSelect">Preseti plošč</label>
+        <div class="row2">
+          <select id="presetSelect">
+            <option value="">— izberi preset —</option>
+          </select>
+          <input type="text" id="presetName" placeholder="ime presetа, npr. Breza 6mm">
+        </div>
+        <div class="preset-actions">
+          <button type="button" class="btn-outline" id="savePreset">Shrani preset</button>
+          <button type="button" class="btn-outline warn" id="deletePreset">Izbriši</button>
+        </div>
+        <p class="note" style="margin-top:8px;">Preseti se trajno shranijo — znotraj Claude.ai v tem pogovoru, ali (če datoteko odpreš samostojno oz. gostiš na svoji strani) lokalno v tvojem brskalniku.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>DXF obris izreza</h2>
+      <div class="dropzone" id="dropzone">
+        <div class="big">Spusti .dxf datoteko sem</div>
+        <div class="small">ali klikni za izbiro</div>
+        <input type="file" id="fileInput" accept=".dxf">
+      </div>
+      <div class="file-list" id="fileList"></div>
+      <button type="button" class="add-file-btn hidden" id="addFileBtn">+ Dodaj še en DXF</button>
+      <div class="errbox" id="errbox"></div>
+    </div>
+
+  </div>
+
+  <div class="panel results hidden full" id="results" style="margin-top:14px;">
+    <h2>Rezultat</h2>
+
+    <div class="mode-toggle">
+      <button type="button" class="mode-btn active" data-mode="outline">Zunanji outline</button>
+      <button type="button" class="mode-btn" data-mode="bbox">Box okoli DXF</button>
+    </div>
+    <p class="note" id="dragHint" style="margin-top:-8px; margin-bottom:14px;">Kose lahko povlečeš z miško po plošči, da jih razporediš.</p>
+
+    <div class="grid" style="gap:16px;">
+      <div>
+        <div class="preview" id="preview"></div>
+        <div class="preview-legend">
+          <span><i class="swatch" style="background:rgba(200,138,74,0.28); border:1px solid #c88a4a;"></i>DXF outline</span>
+          <span id="legendBox" style="display:none;"><i class="swatch" style="background:rgba(91,143,201,0.15); border:1px solid #5b8fc9;"></i>Box</span>
+          <span><i class="swatch" style="background:transparent; border:1px dashed #46443a;"></i>Plošča</span>
+        </div>
+        <div class="warnbox" id="overflowWarn">Izrez je večji od vnesene plošče na vsaj eni stranici — ne gre nanjo v enem kosu.</div>
+        <div class="parts-breakdown" id="partsBreakdown"></div>
+      </div>
+      <div>
+        <div class="stat-row">
+          <div class="k">Uvoženi kosi</div>
+          <div class="v" id="rExtent">–</div>
+        </div>
+        <div class="stat-row">
+          <div class="k" id="rShapeAreaLabel">Površina (zunanji outline)</div>
+          <div class="v" id="rShapeArea">–</div>
+        </div>
+        <div class="stat-row">
+          <div class="k">Delež površine plošče</div>
+          <div class="v" id="rShare">–</div>
+        </div>
+        <div class="bar"><div id="rBar" style="width:0%"></div></div>
+
+        <div class="stat-row hero">
+          <div class="k">Strošek materiala</div>
+          <div class="v" id="rCost">–</div>
+        </div>
+        <div class="stat-row">
+          <div class="k">Cena / m² plošče</div>
+          <div class="v" id="rPricePerM2">–</div>
+        </div>
+      </div>
+    </div>
+    <p class="note" id="rNote"></p>
+  </div>
+
+  <div class="panel full" id="profitPanel" style="margin-top:14px;">
+    <h2>Cena in neto profit</h2>
+    <div class="grid" style="gap:16px;">
+      <div>
+        <div class="field">
+          <label for="matCost">Materialni stroški <span class="unit">EUR</span></label>
+          <div class="row2" style="grid-template-columns: 1fr auto;">
+            <input type="number" id="matCost" step="0.01" min="0" placeholder="0.00">
+            <button type="button" class="btn-outline" id="pullMatCost" style="flex:none; padding:9px 14px;">↻ Iz izračuna</button>
+          </div>
+        </div>
+
+        <label style="margin-top:4px;">Postavke (% od materialnih stroškov)</label>
+        <div id="markupRows"></div>
+        <button type="button" class="add-file-btn" id="addMarkupRow">+ Dodaj postavko</button>
+
+        <div class="field" style="margin-top:16px; margin-bottom:0;">
+          <label for="taxPct">Davek <span class="unit">% od dobička (postavk)</span></label>
+          <input type="number" id="taxPct" step="0.1" min="0" value="20" placeholder="npr. 20">
+        </div>
+      </div>
+      <div>
+        <div class="stat-row">
+          <div class="k">Materialni stroški</div>
+          <div class="v" id="pMatCost">–</div>
+        </div>
+        <div class="stat-row">
+          <div class="k">Skupaj postavke (bruto dobiček)</div>
+          <div class="v" id="pMarkupTotal">–</div>
+        </div>
+        <div class="stat-row hero">
+          <div class="k">Prodajna cena</div>
+          <div class="v" id="pSellPrice">–</div>
+        </div>
+        <div class="stat-row">
+          <div class="k">Davek</div>
+          <div class="v" id="pTax">–</div>
+        </div>
+        <div class="stat-row hero">
+          <div class="k">Neto profit</div>
+          <div class="v" id="pNetProfit">–</div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Privzeti odstotki so nastavljeni tako, da za manjši custom kos (materialni stroški nekje 1,5–2 €, kot pri tvojem pokalu) prodajna cena pride do okoli 15 €. "Sklad za amortizacijo / vzdrževanje stroja" ni tekoč strošek obratovanja, ampak del denarja, ki gre na stran za servis, popravila in dolgoročno zamenjavo stroja (npr. pri strojih vrednosti ~7.000 € to hitro nanese) — po potrebi ga uskladi glede na to, koliko kosov na leto realno izdelaš in kdaj pričakuješ zamenjavo stroja. Delo/čas in znanje pri custom izdelkih po meri odtehtata precej več kot sam material. Vsaka postavka se izračuna kot % materialnih stroškov in se prišteje k prodajni ceni; davek se obračuna na vsoto teh postavk (dobiček pred davkom), ne na materialne stroške. Za druge izdelke (večje plošče, serijska proizvodnja …) odstotke prilagodi — pri večjem materialnem strošku bodo enaki % dali sorazmerno višjo maržo, zato jih po potrebi zniža.</p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+
+  // ---------- persistent storage ----------
+  // Uses Claude's artifact storage when running inside Claude.ai; otherwise
+  // falls back to the browser's localStorage (works when this file is opened
+  // directly, downloaded, or hosted on your own site).
+  function hasClaudeStorage(){
+    return typeof window !== 'undefined' && !!window.storage;
+  }
+  function hasLocalStorage(){
+    try { return typeof localStorage !== 'undefined'; } catch(e){ return false; }
+  }
+  async function storageGet(key){
+    if (hasClaudeStorage()){
+      try {
+        const res = await window.storage.get(key, false);
+        if (res) return res.value;
+      } catch (e){ /* key not found or unavailable - fall through */ }
+    }
+    if (hasLocalStorage()){
+      try { return localStorage.getItem('kalkLes_' + key); } catch (e){ return null; }
+    }
+    return null;
+  }
+  async function storageSet(key, value){
+    if (hasClaudeStorage()){
+      try { await window.storage.set(key, value, false); return; } catch (e){ /* fall through */ }
+    }
+    if (hasLocalStorage()){
+      try { localStorage.setItem('kalkLes_' + key, value); } catch (e){ /* ignore */ }
+    }
+  }
+
+  const sheetPrice = $('sheetPrice'), sheetW = $('sheetW'), sheetH = $('sheetH'), sheetT = $('sheetT');
+  const dropzone = $('dropzone'), fileInput = $('fileInput'), fileListEl = $('fileList'), addFileBtn = $('addFileBtn'), errbox = $('errbox');
+  const results = $('results'), preview = $('preview'), overflowWarn = $('overflowWarn'), partsBreakdown = $('partsBreakdown'), dragHint = $('dragHint');
+  const presetSelect = $('presetSelect'), presetName = $('presetName'), savePresetBtn = $('savePreset'), deletePresetBtn = $('deletePreset');
+  const modeButtons = Array.from(document.querySelectorAll('.mode-btn'));
+  const legendBox = $('legendBox');
+  const matCost = $('matCost'), pullMatCostBtn = $('pullMatCost'), markupRowsEl = $('markupRows'),
+        addMarkupRowBtn = $('addMarkupRow'), taxPctInput = $('taxPct');
+
+  const PART_COLORS = ['#c88a4a', '#5b8fc9', '#7ea36a', '#c96b4a', '#a488c9', '#c9a24a'];
+  let parts = []; // {id, name, geo, xmm, ymm, color}
+  let nextPartId = 1;
+  let calcMode = 'outline'; // 'outline' | 'bbox'
+  let presets = []; // session-only, not persisted: {name, price, w, h, t}
+  let lastMaterialCost = 0;
+  let markupRows = [
+    { id: 1, name: 'Sklad za amortizacijo / vzdrževanje stroja', pct: 500 },
+    { id: 2, name: 'Delo / čas', pct: 450 },
+    { id: 3, name: 'Znanje in izkušnje', pct: 700 }
+  ];
+  let nextMarkupId = 4;
+
+  // ---------- DXF PARSING ----------
+  function parseDXF(text){
+    const lines = text.split(/\r\n|\r|\n/);
+    const pairs = [];
+    for (let i = 0; i + 1 < lines.length; i += 2){
+      const code = parseInt(lines[i].trim(), 10);
+      const value = lines[i+1];
+      if (!isNaN(code)) pairs.push([code, value === undefined ? '' : value.trim()]);
+    }
+
+    const entities = [];
+    let inEntities = false;
+    let cur = null;
+
+    for (let i = 0; i < pairs.length; i++){
+      const [code, val] = pairs[i];
+
+      if (code === 0){
+        if (val === 'ENDSEC'){ inEntities = false; }
+        if (val === 'EOF') break;
+
+        if (cur && cur.type !== 'POLYLINE'){ entities.push(cur); }
+
+        if (['LINE','LWPOLYLINE','CIRCLE','ARC','SPLINE','ELLIPSE'].includes(val) && inEntities){
+          cur = { type: val, pts: [], flags: 0, closed: false };
+        } else {
+          cur = null;
+        }
+        continue;
+      }
+
+      if (code === 2 && val === 'ENTITIES'){ inEntities = true; continue; }
+      if (!cur) continue;
+
+      switch(cur.type){
+        case 'LINE':
+          if (code === 10) cur.x1 = parseFloat(val);
+          if (code === 20) cur.y1 = parseFloat(val);
+          if (code === 11) cur.x2 = parseFloat(val);
+          if (code === 21) cur.y2 = parseFloat(val);
+          break;
+        case 'LWPOLYLINE':
+          if (code === 70) cur.closed = (parseInt(val,10) & 1) === 1;
+          if (code === 10) cur._x = parseFloat(val);
+          if (code === 20) cur.pts.push([cur._x, parseFloat(val)]);
+          break;
+        case 'CIRCLE':
+          if (code === 10) cur.cx = parseFloat(val);
+          if (code === 20) cur.cy = parseFloat(val);
+          if (code === 40) cur.r = parseFloat(val);
+          break;
+        case 'ARC':
+          if (code === 10) cur.cx = parseFloat(val);
+          if (code === 20) cur.cy = parseFloat(val);
+          if (code === 40) cur.r = parseFloat(val);
+          if (code === 50) cur.a1 = parseFloat(val);
+          if (code === 51) cur.a2 = parseFloat(val);
+          break;
+        case 'SPLINE':
+          if (code === 70) cur.flags = parseInt(val,10);
+          if (code === 71) cur.degree = parseInt(val,10);
+          if (code === 40){ cur.knots = cur.knots || []; cur.knots.push(parseFloat(val)); }
+          if (code === 10){ cur._cx = parseFloat(val); }
+          if (code === 20 && cur._cx !== undefined){
+            cur.ctrlPts = cur.ctrlPts || [];
+            cur.ctrlPts.push([cur._cx, parseFloat(val)]);
+            cur._cx = undefined;
+          }
+          if (code === 11){ cur._fx = parseFloat(val); }
+          if (code === 21 && cur._fx !== undefined){
+            cur.fitPts = cur.fitPts || [];
+            cur.fitPts.push([cur._fx, parseFloat(val)]);
+            cur._fx = undefined;
+          }
+          break;
+        case 'ELLIPSE':
+          if (code === 10) cur.cx = parseFloat(val);
+          if (code === 20) cur.cy = parseFloat(val);
+          if (code === 11) cur.majx = parseFloat(val);
+          if (code === 21) cur.majy = parseFloat(val);
+          if (code === 40) cur.ratio = parseFloat(val);
+          if (code === 41) cur.a1 = parseFloat(val);
+          if (code === 42) cur.a2 = parseFloat(val);
+          break;
+      }
+    }
+    if (cur && cur.type !== 'POLYLINE') entities.push(cur);
+
+    // second pass: explicit POLYLINE / VERTEX / SEQEND blocks
+    let i = 0;
+    while (i < pairs.length){
+      if (pairs[i][0] === 0 && pairs[i][1] === 'POLYLINE'){
+        const poly = { type: 'POLYLINE', pts: [], closed: false };
+        i++;
+        while (i < pairs.length && !(pairs[i][0] === 0 && pairs[i][1] === 'SEQEND')){
+          if (pairs[i][0] === 0 && pairs[i][1] === 'VERTEX'){
+            let vx, vy; i++;
+            while (i < pairs.length && !(pairs[i][0] === 0)){
+              if (pairs[i][0] === 10) vx = parseFloat(pairs[i][1]);
+              if (pairs[i][0] === 20) vy = parseFloat(pairs[i][1]);
+              i++;
+            }
+            if (vx !== undefined && vy !== undefined) poly.pts.push([vx, vy]);
+            continue;
+          }
+          if (pairs[i][0] === 70) poly.closed = (parseInt(pairs[i][1],10) & 1) === 1;
+          i++;
+        }
+        entities.push(poly);
+      }
+      i++;
+    }
+    return entities;
+  }
+
+  function arcToPoints(cx, cy, r, a1, a2, segs){
+    segs = segs || 32;
+    let start = a1, end = a2;
+    if (end < start) end += 360;
+    const pts = [];
+    for (let s = 0; s <= segs; s++){
+      const a = (start + (end - start) * s / segs) * Math.PI / 180;
+      pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+    return pts;
+  }
+
+  // De Boor's algorithm: evaluate a (possibly non-uniform) clamped B-spline
+  function deBoorPoint(k, x, t, c, p){
+    let d = [];
+    for (let j = 0; j <= p; j++) d[j] = c[j + k - p];
+    for (let r = 1; r <= p; r++){
+      for (let j = p; j >= r; j--){
+        const denom = t[j+1+k-r] - t[j+k-p];
+        const alpha = denom !== 0 ? (x - t[j+k-p]) / denom : 0;
+        d[j] = [ (1-alpha)*d[j-1][0] + alpha*d[j][0], (1-alpha)*d[j-1][1] + alpha*d[j][1] ];
+      }
+    }
+    return d[p];
+  }
+
+  function bsplinePoints(ctrlPts, knots, degree, samples){
+    const n = ctrlPts.length - 1;
+    if (n < degree || knots.length < n + degree + 2) return null;
+    const tMin = knots[degree], tMax = knots[n+1];
+    if (!(tMax > tMin)) return null;
+    const pts = [];
+    for (let s = 0; s <= samples; s++){
+      let t = tMin + (tMax - tMin) * s / samples;
+      if (t >= tMax) t = tMax - 1e-9;
+      let k = degree;
+      while (k < n && knots[k+1] <= t) k++;
+      pts.push(deBoorPoint(k, t, knots, ctrlPts, degree));
+    }
+    return pts;
+  }
+
+  function getSplinePoints(e){
+    if (e.ctrlPts && e.ctrlPts.length){
+      if (e.knots && e.degree && e.ctrlPts.length > e.degree){
+        const evaluated = bsplinePoints(e.ctrlPts, e.knots, e.degree, 60);
+        if (evaluated) return evaluated;
+      }
+      return e.ctrlPts; // fallback: control polygon (rough but visible)
+    }
+    if (e.fitPts && e.fitPts.length) return e.fitPts;
+    return [];
+  }
+
+  function getEllipsePoints(e){
+    const majLen = Math.hypot(e.majx || 0, e.majy || 0);
+    if (!majLen) return [];
+    const rot = Math.atan2(e.majy, e.majx);
+    const minLen = majLen * (e.ratio !== undefined ? e.ratio : 1);
+    let a1 = e.a1 !== undefined ? e.a1 : 0;
+    let a2 = e.a2 !== undefined ? e.a2 : Math.PI * 2;
+    if (a2 < a1) a2 += Math.PI * 2;
+    const segs = 48;
+    const pts = [];
+    for (let s = 0; s <= segs; s++){
+      const t = a1 + (a2 - a1) * s / segs;
+      const ex = majLen * Math.cos(t), ey = minLen * Math.sin(t);
+      pts.push([
+        e.cx + ex * Math.cos(rot) - ey * Math.sin(rot),
+        e.cy + ex * Math.sin(rot) + ey * Math.cos(rot)
+      ]);
+    }
+    return pts;
+  }
+
+  function shoelaceArea(pts){
+    let a = 0;
+    for (let i = 0; i < pts.length; i++){
+      const [x1,y1] = pts[i];
+      const [x2,y2] = pts[(i+1) % pts.length];
+      a += (x1 * y2 - x2 * y1);
+    }
+    return Math.abs(a) / 2;
+  }
+
+  function bboxOf(pts){
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    pts.forEach(([x,y]) => { if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; });
+    return {minX,minY,maxX,maxY};
+  }
+  function bboxContains(outer, inner){
+    return outer.minX <= inner.minX && outer.maxX >= inner.maxX &&
+           outer.minY <= inner.minY && outer.maxY >= inner.maxY;
+  }
+
+  function chainSegments(segments, tolerance){
+    const eq = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1]) <= tolerance;
+    const pool = segments
+      .filter(s => s && s.length >= 2)
+      .map(s => ({ pts: s, used: false }));
+    const chains = [];
+
+    for (const seed of pool){
+      if (seed.used) continue;
+      seed.used = true;
+      let chain = seed.pts.slice();
+      let extended = true;
+      while (extended){
+        extended = false;
+        const start = chain[0], end = chain[chain.length - 1];
+        for (const other of pool){
+          if (other.used) continue;
+          const oStart = other.pts[0], oEnd = other.pts[other.pts.length - 1];
+          if (eq(end, oStart)){
+            chain = chain.concat(other.pts.slice(1));
+          } else if (eq(end, oEnd)){
+            chain = chain.concat(other.pts.slice(0, -1).reverse());
+          } else if (eq(start, oEnd)){
+            chain = other.pts.slice(0, -1).concat(chain);
+          } else if (eq(start, oStart)){
+            chain = other.pts.slice(1).reverse().concat(chain);
+          } else {
+            continue;
+          }
+          other.used = true;
+          extended = true;
+          break;
+        }
+      }
+      const closed = chain.length > 2 && eq(chain[0], chain[chain.length - 1]);
+      chains.push({ pts: chain, closed });
+    }
+    return chains;
+  }
+
+  function processEntities(entities){
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const allSegments = []; // for drawing full outline (open + closed)
+
+    function extend(x,y){
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+
+    entities.forEach(e => {
+      if (e.type === 'LINE' && e.x1 !== undefined){
+        extend(e.x1, e.y1); extend(e.x2, e.y2);
+        allSegments.push([[e.x1,e.y1],[e.x2,e.y2]]);
+      } else if (e.type === 'LWPOLYLINE' || e.type === 'POLYLINE'){
+        if (e.pts.length){
+          e.pts.forEach(([x,y]) => extend(x,y));
+          // DXF closed-flag polylines don't repeat the first vertex at the end -
+          // add it back so the segment is self-closing for chaining/area purposes.
+          const pts = (e.closed && e.pts.length >= 3) ? e.pts.concat([e.pts[0]]) : e.pts;
+          allSegments.push(pts);
+        }
+      } else if (e.type === 'SPLINE'){
+        let pts = getSplinePoints(e);
+        if (pts.length >= 2){
+          pts.forEach(([x,y]) => extend(x,y));
+          const endsMeet = Math.hypot(pts[0][0]-pts[pts.length-1][0], pts[0][1]-pts[pts.length-1][1]) < 1e-6;
+          if (!!(e.flags & 1) && !endsMeet) pts = pts.concat([pts[0]]);
+          allSegments.push(pts);
+        }
+      } else if (e.type === 'ELLIPSE' && e.cx !== undefined){
+        const pts = getEllipsePoints(e);
+        if (pts.length){
+          pts.forEach(([x,y]) => extend(x,y));
+          allSegments.push(pts);
+        }
+      } else if (e.type === 'CIRCLE' && e.r !== undefined){
+        extend(e.cx - e.r, e.cy - e.r);
+        extend(e.cx + e.r, e.cy + e.r);
+        allSegments.push(arcToPoints(e.cx, e.cy, e.r, 0, 360, 48));
+      } else if (e.type === 'ARC' && e.r !== undefined){
+        const pts = arcToPoints(e.cx, e.cy, e.r, e.a1, e.a2, 24);
+        pts.forEach(([x,y]) => extend(x,y));
+        allSegments.push(pts);
+      }
+    });
+
+    if (!isFinite(minX)) return null;
+
+    const extentW = maxX - minX, extentH = maxY - minY;
+    // tolerance for treating two segment endpoints as "the same point" when chaining
+    // separate entities (lines/arcs/splines) into one continuous outline
+    const tolerance = Math.max((extentW + extentH) / 2 * 0.0008, 0.01);
+
+    const chains = chainSegments(allSegments, tolerance);
+    const closedChains = chains
+      .filter(c => c.closed && c.pts.length >= 3)
+      .map(c => ({ pts: c.pts, area: shoelaceArea(c.pts) }))
+      .sort((a,b) => b.area - a.area);
+
+    // material used = area enclosed by the single outermost closed contour only.
+    // inner contours (engraving details, decorative lines, holes, etc.) are ignored
+    // for cost purposes: everything inside the outer silhouette is already
+    // offcut/waste, not extra sheet area you need to buy.
+    const netArea = closedChains.length ? closedChains[0].area : 0;
+
+    return {
+      minX, minY, maxX, maxY,
+      extentW, extentH,
+      netArea, segments: allSegments, loops: closedChains
+    };
+  }
+
+  function fmt(n, d){
+    if (n === null || n === undefined || isNaN(n)) return '–';
+    return n.toLocaleString('sl-SI', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function hexToRgba(hex, alpha){
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function screenToSvg(svgEl, clientX, clientY){
+    const pt = svgEl.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  }
+
+  // ---------- drag-to-arrange state ----------
+  let currentScale = 1;
+  let dragState = null; // {partId, startXmm, startYmm, startSvg, svgEl}
+
+  function attachDragHandlers(svgEl){
+    if (!svgEl) return;
+    svgEl.querySelectorAll('.part-group').forEach(g => {
+      g.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        const id = parseInt(g.getAttribute('data-id'), 10);
+        const part = parts.find(p => p.id === id);
+        if (!part) return;
+        dragState = {
+          partId: id,
+          startXmm: part.xmm,
+          startYmm: part.ymm,
+          startSvg: screenToSvg(svgEl, e.clientX, e.clientY),
+          svgEl
+        };
+      });
+    });
+  }
+
+  document.addEventListener('pointermove', e => {
+    if (!dragState) return;
+    const cur = screenToSvg(dragState.svgEl, e.clientX, e.clientY);
+    const part = parts.find(p => p.id === dragState.partId);
+    if (!part) return;
+    part.xmm = dragState.startXmm + (cur.x - dragState.startSvg.x) / currentScale;
+    part.ymm = dragState.startYmm - (cur.y - dragState.startSvg.y) / currentScale;
+    drawPreview();
+  });
+  document.addEventListener('pointerup', () => { dragState = null; });
+  document.addEventListener('pointercancel', () => { dragState = null; });
+
+  // ---------- preview rendering (all loaded parts) ----------
+  function drawPreview(){
+    const W = 360, H = 300, pad = 14;
+    const sw = parseFloat(sheetW.value), sh = parseFloat(sheetH.value);
+    const hasSheet = sw > 0 && sh > 0;
+    overflowWarn.style.display = 'none';
+    dragHint.style.display = (hasSheet && parts.length) ? 'block' : 'none';
+
+    if (!parts.length){ preview.innerHTML = ''; return; }
+
+    function partPaths(part, toPx){
+      const geo = part.geo;
+      const openPaths = geo.segments.map(seg => {
+        const d = seg.map((p,i) => { const [x,y] = toPx(p); return (i===0?'M':'L') + x.toFixed(1) + ',' + y.toFixed(1); }).join(' ');
+        return `<path d="${d}" fill="none" stroke="${part.color}" stroke-width="1.3" stroke-linejoin="round"/>`;
+      }).join('');
+      const loopPath = geo.loops.map(loop => {
+        let d = '';
+        loop.pts.forEach((p,i) => { const [x,y] = toPx(p); d += (i===0?'M':'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' '; });
+        return d + 'Z ';
+      }).join('');
+      let boxRect = '';
+      if (calcMode === 'bbox'){
+        const [bx0, by0] = toPx([geo.minX, geo.maxY]);
+        boxRect = `<rect x="${bx0.toFixed(1)}" y="${by0.toFixed(1)}" width="${(geo.extentW*currentScale).toFixed(1)}" height="${(geo.extentH*currentScale).toFixed(1)}" fill="rgba(91,143,201,0.14)" stroke="#5b8fc9" stroke-width="1.3" stroke-dasharray="3 2"/>`;
+      }
+      const fill = hexToRgba(part.color, 0.28);
+      return `<path d="${loopPath}" fill="${fill}" stroke="${part.color}" stroke-width="1.4" fill-rule="evenodd"/>${openPaths}${boxRect}`;
+    }
+
+    if (hasSheet){
+      const scale = Math.min((W - pad*2) / sw, (H - pad*2) / sh);
+      currentScale = scale;
+      const sheetPxW = sw * scale, sheetPxH = sh * scale;
+      const sheetOffX = (W - sheetPxW) / 2, sheetOffY = (H - sheetPxH) / 2;
+
+      let anyOverflow = false;
+      const groups = parts.map(part => {
+        const geo = part.geo;
+        if (geo.extentW > sw || geo.extentH > sh) anyOverflow = true;
+        const toPx = ([x,y]) => {
+          const wx = part.xmm + (x - geo.minX), wy = part.ymm + (y - geo.minY);
+          return [sheetOffX + wx*scale, sheetOffY + sheetPxH - wy*scale];
+        };
+        return `<g class="part-group" data-id="${part.id}" style="cursor:grab;">${partPaths(part, toPx)}</g>`;
+      }).join('');
+
+      if (anyOverflow) overflowWarn.style.display = 'block';
+
+      preview.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        <rect x="${sheetOffX.toFixed(1)}" y="${sheetOffY.toFixed(1)}" width="${sheetPxW.toFixed(1)}" height="${sheetPxH.toFixed(1)}"
+          fill="none" stroke="#46443a" stroke-width="1.2" stroke-dasharray="4 3"/>
+        ${groups}
+      </svg>`;
+      attachDragHandlers(preview.querySelector('svg'));
+    } else {
+      // no sheet entered: autofit all parts side by side, dragging disabled
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+      parts.forEach(part => {
+        minX = Math.min(minX, part.xmm); minY = Math.min(minY, part.ymm);
+        maxX = Math.max(maxX, part.xmm + part.geo.extentW); maxY = Math.max(maxY, part.ymm + part.geo.extentH);
+      });
+      const bw = (maxX-minX) || 1, bh = (maxY-minY) || 1;
+      const scale = Math.min((W - pad*2) / bw, (H - pad*2) / bh);
+      currentScale = scale;
+      const offX = pad + (W - pad*2 - bw*scale)/2 - minX*scale;
+      const offY = pad + (H - pad*2 - bh*scale)/2 - minY*scale;
+
+      const groups = parts.map(part => {
+        const geo = part.geo;
+        const toPx = ([x,y]) => {
+          const wx = part.xmm + (x - geo.minX), wy = part.ymm + (y - geo.minY);
+          return [wx*scale + offX, H - (wy*scale + offY)];
+        };
+        return partPaths(part, toPx);
+      }).join('');
+
+      preview.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        ${groups}
+        <text x="${W/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="#a39c8c" font-family="sans-serif">Vnesi širino in višino plošče za prikaz razmerja in prestavljanje</text>
+      </svg>`;
+    }
+  }
+
+  // ---------- aggregated calculation across all parts ----------
+  function calcAndRender(){
+    if (!parts.length){ results.classList.add('hidden'); return; }
+    const price = parseFloat(sheetPrice.value);
+    const sw = parseFloat(sheetW.value), sh = parseFloat(sheetH.value);
+
+    const partArea = p => calcMode === 'bbox' ? (p.geo.extentW * p.geo.extentH) : p.geo.netArea;
+    const totalArea = parts.reduce((sum, p) => sum + partArea(p), 0);
+    const totalAreaM2 = totalArea / 1e6;
+
+    legendBox.style.display = calcMode === 'bbox' ? 'flex' : 'none';
+    $('rShapeAreaLabel').textContent = (parts.length > 1 ? 'Skupna površina ' : 'Površina ') +
+      (calcMode === 'bbox' ? '(box okoli DXF)' : '(zunanji outline)');
+    $('rExtent').textContent = parts.length + (parts.length === 1 ? ' kos' : ' kosov');
+    $('rShapeArea').textContent = totalArea > 0 ? fmt(totalAreaM2,4) + ' m²' : '– (ni zaprtega obrisa)';
+
+    if (price > 0 && sw > 0 && sh > 0){
+      const sheetAreaM2 = (sw * sh) / 1e6;
+      const pricePerM2 = price / sheetAreaM2;
+      $('rPricePerM2').textContent = fmt(pricePerM2,2) + ' EUR/m²';
+      const share = (totalAreaM2 / sheetAreaM2) * 100;
+      $('rShare').textContent = fmt(share,1) + ' %';
+      $('rBar').style.width = Math.min(share,100) + '%';
+      const totalCost = totalArea > 0 ? pricePerM2 * totalAreaM2 : 0;
+      $('rCost').textContent = totalCost > 0 ? fmt(totalCost, 2) + ' EUR' : '–';
+      lastMaterialCost = totalCost;
+    } else {
+      $('rPricePerM2').textContent = '–';
+      $('rShare').textContent = '–';
+      $('rBar').style.width = '0%';
+      $('rCost').textContent = 'vnesi ceno in mere plošče';
+      lastMaterialCost = 0;
+    }
+
+    $('rNote').textContent = calcMode === 'bbox'
+      ? 'Strošek temelji na pravokotnem prostoru (box) vsakega kosa posebej, nato sešteto čez vse uvožene kose.'
+      : 'Površina vsakega kosa upošteva samo njegovo najbolj zunanjo zaprto konturo (silhueto, ki se dotika roba materiala); notranji detajli se ne odštevajo. Skupni strošek je vsota vseh uvoženih kosov.';
+
+    renderPartsBreakdown();
+    drawPreview();
+    results.classList.remove('hidden');
+  }
+
+  function renderPartsBreakdown(){
+    partsBreakdown.innerHTML = parts.map(p => {
+      const area = calcMode === 'bbox' ? (p.geo.extentW * p.geo.extentH) : p.geo.netArea;
+      const areaM2 = area / 1e6;
+      return `<div class="prow">
+        <span class="pname"><span class="dot" style="background:${p.color}"></span><span>${escapeHtml(p.name)}</span></span>
+        <span class="pval">${area > 0 ? fmt(areaM2,4) + ' m²' : '–'}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ---------- part management ----------
+  function assignPosition(part){
+    const sw = parseFloat(sheetW.value), sh = parseFloat(sheetH.value);
+    if (sw > 0 && sh > 0){
+      const margin = Math.max(sw, sh) * 0.02;
+      if (!parts.length){ part.xmm = margin; part.ymm = margin; return; }
+      const last = parts[parts.length - 1];
+      let x = last.xmm + last.geo.extentW + margin;
+      let y = last.ymm;
+      if (x + part.geo.extentW + margin > sw){
+        const maxTop = Math.max(...parts.map(p => p.ymm + p.geo.extentH));
+        x = margin; y = maxTop + margin;
+      }
+      part.xmm = x; part.ymm = y;
+    } else {
+      part.xmm = parts.reduce((s,p) => s + p.geo.extentW + 20, 0);
+      part.ymm = 0;
+    }
+  }
+
+  function addPart(file, geo){
+    const color = PART_COLORS[(nextPartId - 1) % PART_COLORS.length];
+    const part = { id: nextPartId++, name: file.name, geo, xmm: 0, ymm: 0, color };
+    assignPosition(part);
+    parts.push(part);
+    renderFileList();
+    calcAndRender();
+  }
+
+  function removePart(id){
+    parts = parts.filter(p => p.id !== id);
+    renderFileList();
+    if (parts.length){ calcAndRender(); }
+    else { results.classList.add('hidden'); preview.innerHTML = ''; }
+  }
+
+  function renderFileList(){
+    fileListEl.innerHTML = parts.map(p => `
+      <div class="file-item">
+        <span class="fname"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}</span>
+        <button type="button" data-remove="${p.id}" title="Odstrani">×</button>
+      </div>`).join('');
+    fileListEl.querySelectorAll('button[data-remove]').forEach(btn => {
+      btn.addEventListener('click', () => removePart(parseInt(btn.dataset.remove, 10)));
+    });
+    addFileBtn.classList.toggle('hidden', parts.length === 0);
+    dropzone.style.display = parts.length === 0 ? '' : 'none';
+  }
+
+  function handleFile(file){
+    if (!file.name.toLowerCase().endsWith('.dxf')){
+      errbox.textContent = 'Prosim izberi datoteko s končnico .dxf';
+      errbox.style.display = 'block';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const entities = parseDXF(e.target.result);
+        const geo = processEntities(entities);
+        if (!geo){
+          errbox.textContent = 'V datoteki "' + file.name + '" ni bilo mogoče najti nobene geometrije (LINE, LWPOLYLINE, POLYLINE, CIRCLE, ARC).';
+          errbox.style.display = 'block';
+          return;
+        }
+        errbox.style.display = 'none';
+        addPart(file, geo);
+      } catch (err){
+        errbox.textContent = 'Napaka pri branju datoteke "' + file.name + '": ' + err.message;
+        errbox.style.display = 'block';
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function handleFiles(fileList){
+    Array.from(fileList).forEach(f => handleFile(f));
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  addFileBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    if (e.target.files.length) handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+  ['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, e => {
+    e.preventDefault(); dropzone.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, e => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+  }));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+
+  [sheetPrice, sheetW, sheetH, sheetT].forEach(inp => inp.addEventListener('input', calcAndRender));
+
+  // ---------- calc mode toggle ----------
+  modeButtons.forEach(btn => btn.addEventListener('click', () => {
+    calcMode = btn.dataset.mode;
+    modeButtons.forEach(b => b.classList.toggle('active', b === btn));
+    calcAndRender();
+  }));
+
+  // ---------- sheet presets (session-only, not persisted across reloads) ----------
+  function refreshPresetSelect(selectIdx){
+    presetSelect.innerHTML = '<option value="">— izberi preset —</option>' +
+      presets.map((p,i) => `<option value="${i}">${escapeHtml(p.name)}</option>`).join('');
+    if (selectIdx !== undefined) presetSelect.value = String(selectIdx);
+  }
+
+  presetSelect.addEventListener('change', () => {
+    if (presetSelect.value === '') return;
+    const p = presets[parseInt(presetSelect.value, 10)];
+    if (!p) return;
+    sheetPrice.value = p.price; sheetW.value = p.w; sheetH.value = p.h; sheetT.value = p.t;
+    presetName.value = p.name;
+    calcAndRender();
+  });
+
+  savePresetBtn.addEventListener('click', async () => {
+    const name = presetName.value.trim();
+    if (!name){ presetName.focus(); return; }
+    const data = { name, price: sheetPrice.value, w: sheetW.value, h: sheetH.value, t: sheetT.value };
+    const existing = presets.findIndex(p => p.name === name);
+    const idx = existing >= 0 ? existing : presets.push(data) - 1;
+    if (existing >= 0) presets[existing] = data;
+    refreshPresetSelect(idx);
+    await storageSet('presets', JSON.stringify(presets));
+  });
+
+  deletePresetBtn.addEventListener('click', async () => {
+    if (presetSelect.value === '') return;
+    presets.splice(parseInt(presetSelect.value, 10), 1);
+    presetName.value = '';
+    refreshPresetSelect();
+    await storageSet('presets', JSON.stringify(presets));
+  });
+
+  // ---------- profit / pricing configurator ----------
+  function persistProfitDefaults(){
+    const data = {
+      markupRows: markupRows.map(r => ({ id: r.id, name: r.name, pct: r.pct })),
+      taxPct: parseFloat(taxPctInput.value) || 0
+    };
+    storageSet('profitDefaults', JSON.stringify(data));
+  }
+
+  function renderMarkupRows(){
+    markupRowsEl.innerHTML = markupRows.map(r => `
+      <div class="markup-row" data-id="${r.id}">
+        <input type="text" class="mr-name" value="${escapeHtml(r.name)}" placeholder="npr. Delo / čas">
+        <input type="number" class="mr-pct" value="${r.pct}" step="0.5" min="0">
+        <span class="mr-amount">0,00 EUR</span>
+        <button type="button" class="mr-remove" title="Odstrani">×</button>
+      </div>`).join('');
+
+    markupRowsEl.querySelectorAll('.markup-row').forEach(rowEl => {
+      const id = parseInt(rowEl.dataset.id, 10);
+      const row = markupRows.find(r => r.id === id);
+      const nameInput = rowEl.querySelector('.mr-name');
+      const pctInput = rowEl.querySelector('.mr-pct');
+      nameInput.addEventListener('input', e => { row.name = e.target.value; });
+      nameInput.addEventListener('change', persistProfitDefaults);
+      pctInput.addEventListener('input', e => { row.pct = parseFloat(e.target.value) || 0; recalcProfit(); });
+      pctInput.addEventListener('change', persistProfitDefaults);
+      rowEl.querySelector('.mr-remove').addEventListener('click', () => {
+        markupRows = markupRows.filter(r => r.id !== id);
+        renderMarkupRows();
+        recalcProfit();
+        persistProfitDefaults();
+      });
+    });
+  }
+
+  function recalcProfit(){
+    const mat = parseFloat(matCost.value) || 0;
+    let markupTotal = 0;
+    markupRows.forEach(r => {
+      r.amount = mat * (r.pct / 100);
+      markupTotal += r.amount;
+    });
+    const sellPrice = mat + markupTotal;
+    const taxPct = parseFloat(taxPctInput.value) || 0;
+    const tax = markupTotal * (taxPct / 100);
+    const netProfit = markupTotal - tax;
+
+    $('pMatCost').textContent = mat > 0 ? fmt(mat,2) + ' EUR' : '–';
+    $('pMarkupTotal').textContent = fmt(markupTotal,2) + ' EUR';
+    $('pSellPrice').textContent = fmt(sellPrice,2) + ' EUR';
+    $('pTax').textContent = fmt(tax,2) + ' EUR';
+    $('pNetProfit').textContent = fmt(netProfit,2) + ' EUR';
+
+    markupRowsEl.querySelectorAll('.markup-row').forEach(rowEl => {
+      const id = parseInt(rowEl.dataset.id, 10);
+      const row = markupRows.find(r => r.id === id);
+      if (row) rowEl.querySelector('.mr-amount').textContent = fmt(row.amount,2) + ' EUR';
+    });
+  }
+
+  pullMatCostBtn.addEventListener('click', () => {
+    matCost.value = lastMaterialCost > 0 ? lastMaterialCost.toFixed(2) : '';
+    recalcProfit();
+  });
+  addMarkupRowBtn.addEventListener('click', () => {
+    markupRows.push({ id: nextMarkupId++, name: '', pct: 0 });
+    renderMarkupRows();
+    recalcProfit();
+    persistProfitDefaults();
+  });
+  matCost.addEventListener('input', recalcProfit);
+  taxPctInput.addEventListener('input', recalcProfit);
+  taxPctInput.addEventListener('change', persistProfitDefaults);
+
+  renderMarkupRows();
+  recalcProfit();
+
+  // ---------- load persisted presets & profit defaults on startup ----------
+  (async function init(){
+    const savedPresets = await storageGet('presets');
+    if (savedPresets){
+      try { presets = JSON.parse(savedPresets); refreshPresetSelect(); } catch(e){}
+    }
+    const savedProfit = await storageGet('profitDefaults');
+    if (savedProfit){
+      try {
+        const data = JSON.parse(savedProfit);
+        if (Array.isArray(data.markupRows) && data.markupRows.length){
+          markupRows = data.markupRows;
+          nextMarkupId = Math.max(...markupRows.map(r => r.id)) + 1;
+        }
+        if (data.taxPct !== undefined) taxPctInput.value = data.taxPct;
+        renderMarkupRows();
+        recalcProfit();
+      } catch(e){}
+    }
+  })();
+
+})();
+</script>
+</body>
+</html>
