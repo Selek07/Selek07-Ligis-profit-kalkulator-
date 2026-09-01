@@ -350,11 +350,10 @@
   .design-canvas-wrap canvas{ max-width:100%; border-radius:4px; border:1px solid var(--line); }
 
   .priority-corner{
-    position: static; background: var(--wood); color:#211a10;
+    position: static; background: var(--warn); color:#fff;
     font-weight: 700; font-size: 13px; padding: 9px 14px; border-radius: 20px; cursor:pointer;
     box-shadow: 0 3px 10px rgba(0,0,0,0.4); display:flex; align-items:center; gap:6px;
   }
-  .priority-corner.has-priority{ background: var(--warn); color:#fff; }
   .priority-corner.hidden{ display:none; }
   .priority-corner:hover{ filter: brightness(1.08); }
 
@@ -365,6 +364,7 @@
     border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 8px;
   }
   .new-orders-dropdown.hidden{ display:none; }
+  .no-header{ font-size: 11px; color: var(--text-dim); padding: 6px 8px 4px; font-weight:600; }
   .no-row{
     display:flex; align-items:center; gap:8px; padding: 9px 10px; border-radius: 5px; cursor:pointer;
     font-size: 13px; border-left: 3px solid var(--line);
@@ -493,8 +493,8 @@
 </div>
 
 <div class="priority-corner-wrap" id="priorityCornerWrap">
-  <div class="priority-corner hidden" id="priorityCorner" title="Nova naročila — klikni za seznam">
-    📥 <span id="priorityCornerCount">0</span> novih
+  <div class="priority-corner hidden" id="priorityCorner" title="Prednostna naročila — klikni za pregled">
+    ⚡ <span id="priorityCornerCount">0</span> prednostno
   </div>
   <div class="new-orders-dropdown hidden" id="newOrdersDropdown"></div>
 </div>
@@ -1977,14 +1977,7 @@
 
   logoutBtn.addEventListener('click', () => firebaseAuth.signOut());
 
-  priorityCorner.addEventListener('click', () => {
-    newOrdersDropdown.classList.toggle('hidden');
-  });
-  document.addEventListener('click', e => {
-    if (!priorityCorner.contains(e.target) && !newOrdersDropdown.contains(e.target)){
-      newOrdersDropdown.classList.add('hidden');
-    }
-  });
+  priorityCorner.addEventListener('click', () => showView('inquiriesView'));
 
   function startPriorityWatch(){
     if (!firestoreDb || priorityUnsub) return;
@@ -1997,18 +1990,20 @@
           if (!!b.priority !== !!a.priority) return (b.priority?1:0) - (a.priority?1:0);
           return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
         });
-        const n = rows.length, priorityN = rows.filter(r => r.priority).length;
-        priorityCornerCount.textContent = n;
-        priorityCorner.classList.toggle('hidden', n === 0);
-        priorityCorner.classList.toggle('has-priority', priorityN > 0);
-        newOrdersDropdown.innerHTML = rows.map(r => `
-          <div class="no-row ${r.priority ? 'no-priority' : ''}" data-id="${r.id}">
-            ${r.priority ? '⚡ ' : ''}<span class="no-name">${escapeHtmlLocal(r.customerName || '—')}</span>
-            <span class="no-tpl">${escapeHtmlLocal(r.template || '')}</span>
-          </div>`).join('');
+        const priorityN = rows.filter(r => r.priority).length;
+        priorityCornerCount.textContent = priorityN;
+        priorityCorner.classList.toggle('hidden', priorityN === 0);
+
+        newOrdersDropdown.classList.toggle('hidden', rows.length === 0);
+        newOrdersDropdown.innerHTML = rows.length === 0 ? '' : `
+          <div class="no-header">📥 ${rows.length} novih naročil</div>
+          ${rows.map(r => `
+            <div class="no-row ${r.priority ? 'no-priority' : ''}" data-id="${r.id}">
+              ${r.priority ? '⚡ ' : ''}<span class="no-name">${escapeHtmlLocal(r.customerName || '—')}</span>
+              <span class="no-tpl">${escapeHtmlLocal(r.template || '')}</span>
+            </div>`).join('')}`;
         newOrdersDropdown.querySelectorAll('.no-row').forEach(row => {
           row.addEventListener('click', () => {
-            newOrdersDropdown.classList.add('hidden');
             showView('inquiriesView');
             openOrderModal(row.dataset.id);
           });
