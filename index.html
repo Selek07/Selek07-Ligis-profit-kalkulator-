@@ -264,9 +264,29 @@
   .inquiry-card.status-novo{ border-left-color: var(--wood); }
   .inquiry-card.status-v_obdelavi{ border-left-color: #5b8fc9; }
   .inquiry-card.status-zaključeno{ border-left-color: var(--good); }
+  .inquiry-card.priority{ border-left-color: var(--warn); background: rgba(201,107,74,0.06); }
   select.status-novo{ background: rgba(200,138,74,0.16); color: var(--wood); border-color: var(--wood-dim); }
   select.status-v_obdelavi{ background: rgba(91,143,201,0.16); color: #7fb0e6; border-color: #5b8fc9; }
   select.status-zaključeno{ background: rgba(126,163,106,0.16); color: var(--good); border-color: var(--good); }
+
+  .priority-badge{
+    display:inline-flex; align-items:center; gap:4px; background: var(--warn); color:#fff;
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 10px; margin-bottom: 6px;
+  }
+  .priority-toggle{
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 11.5px; padding: 5px 10px; border-radius: 4px; cursor:pointer; margin-top: 8px;
+  }
+  .priority-toggle:hover{ border-color: var(--warn); color: var(--warn); }
+  .priority-toggle.is-active{ background: rgba(201,107,74,0.16); border-color: var(--warn); color: var(--warn); }
+
+  .priority-corner{
+    position: fixed; top: 14px; right: 14px; z-index: 300; background: var(--warn); color:#fff;
+    font-weight: 700; font-size: 13px; padding: 9px 14px; border-radius: 20px; cursor:pointer;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.4); display:flex; align-items:center; gap:6px;
+  }
+  .priority-corner.hidden{ display:none; }
+  .priority-corner:hover{ background:#d97a55; }
 
   .section-label{
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
@@ -371,6 +391,10 @@
   <button type="button" class="sidebar-btn active" data-view="calculatorView" title="Kalkulator">🧮</button>
   <button type="button" class="sidebar-btn" data-view="inquiriesView" title="Povpraševanja">📥</button>
   <button type="button" class="sidebar-btn logout" id="logoutBtn" title="Odjava">⏻</button>
+</div>
+
+<div class="priority-corner hidden" id="priorityCorner" title="Nova prednostna naročila — klikni za pregled">
+  ⚡ <span id="priorityCornerCount">0</span> prednostno
 </div>
 
 <div id="calculatorView" class="app-view hidden">
@@ -1757,6 +1781,8 @@
   const appSidebar = $('appSidebar'), logoutBtn = $('logoutBtn');
   const views = { calculatorView: $('calculatorView'), inquiriesView: $('inquiriesView') };
   const inquiriesList = $('inquiriesList'), inquiriesEmpty = $('inquiriesEmpty');
+  const priorityCorner = $('priorityCorner'), priorityCornerCount = $('priorityCornerCount');
+  let priorityUnsub = null;
 
   function showView(id){
     Object.keys(views).forEach(k => views[k].classList.toggle('hidden', k !== id));
@@ -1790,6 +1816,24 @@
 
   logoutBtn.addEventListener('click', () => firebaseAuth.signOut());
 
+  priorityCorner.addEventListener('click', () => showView('inquiriesView'));
+
+  function startPriorityWatch(){
+    if (!firestoreDb || priorityUnsub) return;
+    priorityUnsub = firestoreDb.collection('inquiries')
+      .where('priority', '==', true)
+      .where('status', '==', 'novo')
+      .onSnapshot(snap => {
+        const n = snap.size;
+        priorityCornerCount.textContent = n;
+        priorityCorner.classList.toggle('hidden', n === 0);
+      }, err => console.error('Priority watch failed:', err));
+  }
+  function stopPriorityWatch(){
+    if (priorityUnsub){ priorityUnsub(); priorityUnsub = null; }
+    priorityCorner.classList.add('hidden');
+  }
+
   if (firebaseAuth){
     firebaseAuth.onAuthStateChanged(user => {
       if (user){
@@ -1797,11 +1841,13 @@
         appSidebar.classList.remove('hidden');
         document.body.classList.add('with-sidebar');
         showView('calculatorView');
+        startPriorityWatch();
       } else {
         loginScreen.classList.remove('hidden');
         appSidebar.classList.add('hidden');
         document.body.classList.remove('with-sidebar');
         Object.values(views).forEach(v => v.classList.add('hidden'));
+        stopPriorityWatch();
       }
     });
   }
@@ -1829,9 +1875,10 @@
       inquiriesList.innerHTML = snap.docs.map(doc => {
         const d = doc.data();
         const images = (d.imageUrls || []).map(u => `<img src="${u}" onclick="window.open('${u}','_blank')">`).join('');
-        return `<div class="inquiry-card ${statusClass(d.status)}" data-id="${doc.id}">
+        return `<div class="inquiry-card ${statusClass(d.status)} ${d.priority ? 'priority' : ''}" data-id="${doc.id}">
           <div class="ihead">
             <div>
+              ${d.priority ? '<div class="priority-badge">⚡ Prednostno</div>' : ''}
               <div class="iname">${escapeHtmlLocal(d.customerName || '—')}</div>
               <div class="idate">${fmtDate(d.createdAt)}</div>
             </div>
@@ -1846,15 +1893,41 @@
           <div class="irow"><span class="k">Ocena:</span>${escapeHtmlLocal(d.estimateText)}</div>
           <div class="irow"><span class="k">Kontakt:</span>${escapeHtmlLocal(d.customerEmail)}${d.customerPhone ? ' · ' + escapeHtmlLocal(d.customerPhone) : ''}</div>
           ${images ? `<div class="iimages">${images}</div>` : ''}
+          <button type="button" class="priority-toggle ${d.priority ? 'is-active' : ''}" data-id="${doc.id}">
+            ${d.priority ? '✕ Odstrani prednostno' : '⚡ Označi kot prednostno'}
+          </button>
         </div>`;
       }).join('');
 
       inquiriesList.querySelectorAll('select[data-id]').forEach(sel => {
         sel.addEventListener('change', async () => {
-          sel.className = statusClass(sel.value);
-          sel.closest('.inquiry-card').className = 'inquiry-card ' + statusClass(sel.value);
+          const card = sel.closest('.inquiry-card');
+          STATUS_OPTIONS.forEach(s => { sel.classList.remove(statusClass(s)); card.classList.remove(statusClass(s)); });
+          sel.classList.add(statusClass(sel.value));
+          card.classList.add(statusClass(sel.value));
           try { await firestoreDb.collection('inquiries').doc(sel.dataset.id).update({ status: sel.value }); }
           catch (e){ console.error('Status update failed:', e); }
+        });
+      });
+
+      inquiriesList.querySelectorAll('.priority-toggle').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const card = btn.closest('.inquiry-card');
+          const nowPriority = !card.classList.contains('priority');
+          card.classList.toggle('priority', nowPriority);
+          btn.classList.toggle('is-active', nowPriority);
+          btn.textContent = nowPriority ? '✕ Odstrani prednostno' : '⚡ Označi kot prednostno';
+          let badge = card.querySelector('.priority-badge');
+          if (nowPriority && !badge){
+            badge = document.createElement('div');
+            badge.className = 'priority-badge';
+            badge.textContent = '⚡ Prednostno';
+            card.querySelector('.ihead > div').prepend(badge);
+          } else if (!nowPriority && badge){
+            badge.remove();
+          }
+          try { await firestoreDb.collection('inquiries').doc(btn.dataset.id).update({ priority: nowPriority }); }
+          catch (e){ console.error('Priority update failed:', e); }
         });
       });
     } catch (err){
