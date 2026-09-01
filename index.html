@@ -350,12 +350,29 @@
   .design-canvas-wrap canvas{ max-width:100%; border-radius:4px; border:1px solid var(--line); }
 
   .priority-corner{
-    position: fixed; top: 14px; right: 14px; z-index: 300; background: var(--warn); color:#fff;
+    position: static; background: var(--wood); color:#211a10;
     font-weight: 700; font-size: 13px; padding: 9px 14px; border-radius: 20px; cursor:pointer;
     box-shadow: 0 3px 10px rgba(0,0,0,0.4); display:flex; align-items:center; gap:6px;
   }
+  .priority-corner.has-priority{ background: var(--warn); color:#fff; }
   .priority-corner.hidden{ display:none; }
-  .priority-corner:hover{ background:#d97a55; }
+  .priority-corner:hover{ filter: brightness(1.08); }
+
+  .priority-corner-wrap{ position: fixed; top: 14px; right: 14px; z-index: 300; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+
+  .new-orders-dropdown{
+    width: 300px; max-height: 60vh; overflow-y:auto; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 8px;
+  }
+  .new-orders-dropdown.hidden{ display:none; }
+  .no-row{
+    display:flex; align-items:center; gap:8px; padding: 9px 10px; border-radius: 5px; cursor:pointer;
+    font-size: 13px; border-left: 3px solid var(--line);
+  }
+  .no-row:hover{ background: var(--panel-2); }
+  .no-row.no-priority{ border-left-color: var(--warn); }
+  .no-row .no-name{ font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .no-row .no-tpl{ font-size: 11px; color: var(--text-dim); flex:none; max-width: 90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .kpi-grid{
     display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; margin-bottom: 16px;
@@ -475,8 +492,11 @@
   <button type="button" class="sidebar-btn logout" id="logoutBtn" title="Odjava">⏻</button>
 </div>
 
-<div class="priority-corner hidden" id="priorityCorner" title="Nova prednostna naročila — klikni za pregled">
-  ⚡ <span id="priorityCornerCount">0</span> prednostno
+<div class="priority-corner-wrap" id="priorityCornerWrap">
+  <div class="priority-corner hidden" id="priorityCorner" title="Nova naročila — klikni za seznam">
+    📥 <span id="priorityCornerCount">0</span> novih
+  </div>
+  <div class="new-orders-dropdown hidden" id="newOrdersDropdown"></div>
 </div>
 
 <div id="calculatorView" class="app-view hidden">
@@ -724,6 +744,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -1920,7 +1941,7 @@
   const appSidebar = $('appSidebar'), logoutBtn = $('logoutBtn');
   const views = { calculatorView: $('calculatorView'), inquiriesView: $('inquiriesView'), insightsView: $('insightsView') };
   const inquiriesList = $('inquiriesList'), inquiriesEmpty = $('inquiriesEmpty');
-  const priorityCorner = $('priorityCorner'), priorityCornerCount = $('priorityCornerCount');
+  const priorityCorner = $('priorityCorner'), priorityCornerCount = $('priorityCornerCount'), newOrdersDropdown = $('newOrdersDropdown');
   let priorityUnsub = null;
 
   function showView(id){
@@ -1956,22 +1977,48 @@
 
   logoutBtn.addEventListener('click', () => firebaseAuth.signOut());
 
-  priorityCorner.addEventListener('click', () => showView('inquiriesView'));
+  priorityCorner.addEventListener('click', () => {
+    newOrdersDropdown.classList.toggle('hidden');
+  });
+  document.addEventListener('click', e => {
+    if (!priorityCorner.contains(e.target) && !newOrdersDropdown.contains(e.target)){
+      newOrdersDropdown.classList.add('hidden');
+    }
+  });
 
   function startPriorityWatch(){
     if (!firestoreDb || priorityUnsub) return;
     priorityUnsub = firestoreDb.collection('inquiries')
-      .where('priority', '==', true)
       .where('status', '==', 'novo')
       .onSnapshot(snap => {
-        const n = snap.size;
+        const rows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // priority orders always first, then oldest-first within each group
+        rows.sort((a,b) => {
+          if (!!b.priority !== !!a.priority) return (b.priority?1:0) - (a.priority?1:0);
+          return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
+        });
+        const n = rows.length, priorityN = rows.filter(r => r.priority).length;
         priorityCornerCount.textContent = n;
         priorityCorner.classList.toggle('hidden', n === 0);
-      }, err => console.error('Priority watch failed:', err));
+        priorityCorner.classList.toggle('has-priority', priorityN > 0);
+        newOrdersDropdown.innerHTML = rows.map(r => `
+          <div class="no-row ${r.priority ? 'no-priority' : ''}" data-id="${r.id}">
+            ${r.priority ? '⚡ ' : ''}<span class="no-name">${escapeHtmlLocal(r.customerName || '—')}</span>
+            <span class="no-tpl">${escapeHtmlLocal(r.template || '')}</span>
+          </div>`).join('');
+        newOrdersDropdown.querySelectorAll('.no-row').forEach(row => {
+          row.addEventListener('click', () => {
+            newOrdersDropdown.classList.add('hidden');
+            showView('inquiriesView');
+            openOrderModal(row.dataset.id);
+          });
+        });
+      }, err => console.error('New-orders watch failed:', err));
   }
   function stopPriorityWatch(){
     if (priorityUnsub){ priorityUnsub(); priorityUnsub = null; }
     priorityCorner.classList.add('hidden');
+    newOrdersDropdown.classList.add('hidden');
   }
 
   if (firebaseAuth){
