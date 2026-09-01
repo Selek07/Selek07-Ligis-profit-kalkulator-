@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Potrditev designa</title>
+<style>
+  :root{ --bg:#21201c; --panel:#2b2a25; --line:#46443a; --wood:#c88a4a; --text:#ece7dc; --text-dim:#a39c8c; --good:#7ea36a; --warn:#c96b4a; }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--text); font-family:"IBM Plex Sans","Segoe UI",sans-serif; }
+  body{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .box{
+    max-width: 420px; text-align:center; background:var(--panel); border:1px solid var(--line);
+    border-radius: 10px; padding: 36px 28px;
+  }
+  .icon{ font-size: 44px; margin-bottom: 14px; }
+  h1{ font-size: 20px; margin: 0 0 10px; }
+  p{ color: var(--text-dim); font-size: 14.5px; line-height:1.5; margin:0; }
+  .good{ color: var(--good); }
+  .warn{ color: var(--warn); }
+</style>
+</head>
+<body>
+  <div class="box" id="box">
+    <div class="icon">⏳</div>
+    <h1>Potrjujem...</h1>
+    <p>Trenutek prosim.</p>
+  </div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxF_AR2rlWpNUuXoKbutNtmS_hhehBcsY",
+    authDomain: "ligis-kalkulator.firebaseapp.com",
+    projectId: "ligis-kalkulator",
+    storageBucket: "ligis-kalkulator.firebasestorage.app",
+    messagingSenderId: "541619453249",
+    appId: "1:541619453249:web:0bcaac48e7d5db072775c0",
+    measurementId: "G-7WLG95L7YX"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const box = document.getElementById('box');
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+
+  async function run(){
+    if (!id){
+      box.innerHTML = '<div class="icon">⚠️</div><h1 class="warn">Manjka ID naročila</h1><p>Ta povezava ni popolna. Kontaktiraj me direktno.</p>';
+      return;
+    }
+    try {
+      await db.collection('inquiries').doc(id).update({
+        approved: true,
+        approvedAt: firebase.firestore.Timestamp.now()
+      });
+      box.innerHTML = '<div class="icon">✅</div><h1 class="good">Hvala za potrditev!</h1><p>Design je odobren in gre v rezanje. Javim se ti, ko bo izdelek pripravljen.</p>';
+    } catch (err){
+      console.error(err);
+      box.innerHTML = '<div class="icon">⚠️</div><h1 class="warn">Nekaj je šlo narobe</h1><p>Poskusi znova čez trenutek, ali me kontaktiraj direktno.</p>';
+    }
+  }
+  run();
+</script>
+</body>
+</html>
