@@ -280,6 +280,75 @@
   .priority-toggle:hover{ border-color: var(--warn); color: var(--warn); }
   .priority-toggle.is-active{ background: rgba(201,107,74,0.16); border-color: var(--warn); color: var(--warn); }
 
+  .email-actions{ display:flex; flex-direction:column; gap: 8px; margin-top: 10px; }
+  .email-btn{
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    font-size: 11.5px; padding: 6px 10px; border-radius: 4px; cursor:pointer; text-align:left;
+  }
+  .email-btn:hover{ border-color: var(--wood-dim); color: var(--wood); }
+  .email-btn.sent{ background: rgba(126,163,106,0.14); border-color: var(--good); color: var(--good); }
+  .offer-row{ display:flex; gap: 6px; }
+  .offer-row input{
+    width: 80px; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    padding: 6px 8px; border-radius: 4px; font-size: 12.5px; font-family: var(--mono);
+  }
+  .offer-row .email-btn{ flex:1; }
+
+  .order-modal{
+    position: fixed; inset:0; z-index: 900; background: rgba(0,0,0,0.85);
+    display:flex; align-items:center; justify-content:center; padding: 20px;
+  }
+  .order-modal.hidden{ display:none; }
+  .order-modal-inner{
+    position:relative; width:100%; max-width: 640px; max-height: 90vh; overflow-y:auto;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 26px 22px;
+  }
+  .order-approved-banner{
+    background: rgba(126,163,106,0.14); border: 1px solid var(--good); color: var(--good);
+    border-radius: 5px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px;
+  }
+  .order-pending-banner{
+    background: rgba(200,138,74,0.1); border: 1px solid var(--wood-dim); color: var(--wood);
+    border-radius: 5px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px;
+  }
+
+  .timeline{ display:flex; flex-direction:column; gap: 10px; margin: 14px 0 20px; }
+  .timeline-item{
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--wood-dim);
+    border-radius: 5px; padding: 10px 12px;
+  }
+  .timeline-item.tl-approved{ border-left-color: var(--good); }
+  .timeline-item.tl-design{ border-left-color: #5b8fc9; }
+  .timeline-item .tl-head{ display:flex; justify-content:space-between; font-size: 11.5px; color: var(--text-dim); margin-bottom: 4px; }
+  .timeline-item .tl-body{ font-size: 13px; }
+  .timeline-item img{ max-width: 160px; border-radius: 4px; margin-top: 6px; display:block; cursor:pointer; }
+
+  .order-section{ border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
+  .order-section h3{ font-size: 14px; margin: 0 0 10px; }
+  .order-section textarea{
+    width:100%; min-height: 70px; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    padding: 9px 10px; border-radius: 4px; font-size: 13.5px; font-family: var(--sans); resize:vertical;
+  }
+  .order-row{ display:flex; gap: 8px; margin-top: 8px; }
+  .order-row input[type=number]{
+    width: 100px; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    padding: 9px 10px; border-radius: 4px; font-size: 14px; font-family: var(--mono);
+  }
+  .order-row .submit-like{
+    flex:1; background: var(--wood); border:none; color:#211a10; font-weight:650;
+    padding: 10px; border-radius: 5px; font-size: 13.5px; cursor:pointer;
+  }
+  .order-row .submit-like:hover{ background:#d69a5a; }
+  .order-row .submit-like:disabled{ background: var(--panel-2); color: var(--text-dim); cursor:not-allowed; }
+  .design-drop{
+    border: 1.5px dashed var(--line); border-radius: 6px; padding: 16px; text-align:center;
+    cursor:pointer; font-size: 13px; color: var(--text-dim); margin-top: 8px;
+  }
+  .design-drop:hover{ border-color: var(--wood-dim); color: var(--wood); }
+  .design-drop input{ display:none; }
+  .design-canvas-wrap{ margin-top: 10px; text-align:center; }
+  .design-canvas-wrap canvas{ max-width:100%; border-radius:4px; border:1px solid var(--line); }
+
   .priority-corner{
     position: fixed; top: 14px; right: 14px; z-index: 300; background: var(--warn); color:#fff;
     font-weight: 700; font-size: 13px; padding: 9px 14px; border-radius: 20px; cursor:pointer;
@@ -641,6 +710,13 @@
   </div>
 </div>
 
+<div class="order-modal hidden" id="orderModal">
+  <div class="order-modal-inner">
+    <button type="button" class="preview-modal-close" id="orderModalClose" title="Zapri">✕</button>
+    <div id="orderModalBody">Nalagam...</div>
+  </div>
+</div>
+
 <div class="preview-modal hidden" id="previewModal">
   <button type="button" class="preview-modal-close" id="previewModalClose" title="Zapri">✕</button>
   <div class="preview-modal-inner preview-target" id="previewModalInner"></div>
@@ -650,6 +726,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
   // Firebase config from the Firebase console — public by design for a client-side
   // web app; access is controlled via Firestore security rules, not by secrecy.
@@ -668,6 +745,13 @@
     firestoreDb = firebase.firestore();
     firebaseAuth = firebase.auth();
   } catch (e){ console.error('Firebase init failed:', e); }
+
+  // ---- EmailJS: same Gmail service as narocilo.html, two customer-facing templates ----
+  const EMAILJS_PUBLIC_KEY = 'd_8Lv-N4YHCjTubXx';
+  const EMAILJS_SERVICE_ID = 'service_w2fe6be';
+  const EMAILJS_REPLY_TEMPLATE_ID = 'template_45pqxak';   // confirmation + price + TRR payment, all in one
+  const EMAILJS_DESIGN_TEMPLATE_ID = 'template_w1xh3bd';  // watermarked preview image + approval link
+  try { if (window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch(e){}
 </script>
 <script>
 (function(){
@@ -1821,6 +1905,10 @@
     });
   }
 
+  // exposed so the order-detail modal (separate script block) can reuse DXF parsing
+  window.parseDXF = parseDXF;
+  window.processEntities = processEntities;
+
 })();
 </script>
 
@@ -1948,6 +2036,11 @@
           <button type="button" class="priority-toggle ${d.priority ? 'is-active' : ''}" data-id="${doc.id}">
             ${d.priority ? '✕ Odstrani prednostno' : '⚡ Označi kot prednostno'}
           </button>
+          <div class="email-actions">
+            <button type="button" class="email-btn open-order-btn" data-id="${doc.id}">
+              📂 Odpri naročilo ${d.approved ? '· ✓ design odobren' : ''}
+            </button>
+          </div>
         </div>`;
       }).join('');
 
@@ -1982,8 +2075,233 @@
           catch (e){ console.error('Priority update failed:', e); }
         });
       });
+
+      inquiriesList.querySelectorAll('.open-order-btn').forEach(btn => {
+        btn.addEventListener('click', () => openOrderModal(btn.dataset.id));
+      });
     } catch (err){
       inquiriesList.innerHTML = '<p class="note">Napaka pri nalaganju povpraševanj: ' + escapeHtmlLocal(err.message) + '</p>';
+    }
+  }
+
+  // ---------- order detail modal: conversation timeline, unified reply, design preview ----------
+  const WATERMARK_TEXT = '@ligis.les · PREDOGLED'; // edit to your own handle/name
+  const orderModal = $('orderModal'), orderModalBody = $('orderModalBody'), orderModalClose = $('orderModalClose');
+  let currentOrderId = null;
+
+  orderModalClose.addEventListener('click', () => orderModal.classList.add('hidden'));
+  orderModal.addEventListener('click', e => { if (e.target === orderModal) orderModal.classList.add('hidden'); });
+
+  function tlIcon(type){
+    return { reply_sent:'💬', design_uploaded:'🖼️', approved:'✅' }[type] || '•';
+  }
+  function tlLabel(type){
+    return { reply_sent:'Odgovor poslan', design_uploaded:'Predogled poslan', approved:'Stranka odobrila' }[type] || type;
+  }
+  function tlDate(ts){
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleString('sl-SI', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function getApproveLink(id){
+    const base = location.origin + location.pathname.replace(/[^\/]*$/, '');
+    return base + 'odobri/?id=' + encodeURIComponent(id);
+  }
+
+  async function openOrderModal(id){
+    currentOrderId = id;
+    orderModal.classList.remove('hidden');
+    orderModalBody.innerHTML = 'Nalagam...';
+    let doc;
+    try {
+      const snap = await firestoreDb.collection('inquiries').doc(id).get();
+      if (!snap.exists){ orderModalBody.innerHTML = '<p class="note">Naročilo ne obstaja več.</p>'; return; }
+      doc = snap.data();
+    } catch (e){
+      orderModalBody.innerHTML = '<p class="note">Napaka pri nalaganju: ' + escapeHtmlLocal(e.message) + '</p>';
+      return;
+    }
+    renderOrderModal(id, doc);
+  }
+
+  function renderOrderModal(id, d){
+    const timeline = (d.timeline || []).slice().sort((a,b) => (a.at?.seconds||0) - (b.at?.seconds||0));
+    const tlHtml = [
+      `<div class="timeline-item"><div class="tl-head"><span>📩 Povpraševanje prejeto</span><span>${fmtDate(d.createdAt)}</span></div>
+        <div class="tl-body">${escapeHtmlLocal(d.template)}${d.wishName ? ' · ' + escapeHtmlLocal(d.wishName) : ''} · ${escapeHtmlLocal(d.estimateText)}</div></div>`,
+      ...timeline.map(t => `
+        <div class="timeline-item tl-${t.type === 'approved' ? 'approved' : t.type === 'design_uploaded' ? 'design' : ''}">
+          <div class="tl-head"><span>${tlIcon(t.type)} ${tlLabel(t.type)}</span><span>${tlDate(t.at)}</span></div>
+          <div class="tl-body">
+            ${t.price ? `Cena: <strong>${t.price} €</strong><br>` : ''}
+            ${t.message ? escapeHtmlLocal(t.message) : ''}
+            ${t.imageUrl ? `<img src="${t.imageUrl}" onclick="window.open('${t.imageUrl}','_blank')">` : ''}
+          </div>
+        </div>`)
+    ].join('');
+
+    orderModalBody.innerHTML = `
+      <h2 style="margin-top:0;">${escapeHtmlLocal(d.customerName || '—')}</h2>
+      <div class="irow"><span class="k">Kontakt:</span>${escapeHtmlLocal(d.customerEmail)}${d.customerPhone ? ' · ' + escapeHtmlLocal(d.customerPhone) : ''}</div>
+      ${d.description ? `<div class="irow"><span class="k">Opis:</span>${escapeHtmlLocal(d.description)}</div>` : ''}
+
+      ${d.approved
+        ? `<div class="order-approved-banner">✓ Stranka je odobrila design${d.approvedAt ? ' — ' + tlDate(d.approvedAt) : ''}. Lahko gre v rezanje.</div>`
+        : `<div class="order-pending-banner">Čaka na odobritev designa s strani stranke.</div>`}
+
+      <div class="timeline">${tlHtml}</div>
+
+      <div class="order-section">
+        <h3>💬 Odgovori s ponudbo</h3>
+        <p class="note" style="margin:0 0 4px;">Pošlje en mail: potrditev + cena + navodila za plačilo (TRR podatki so že v EmailJS predlogi).</p>
+        <textarea id="replyMessage" placeholder="Dodatno sporočilo (neobvezno)"></textarea>
+        <div class="order-row">
+          <input type="number" id="replyPrice" placeholder="cena €" step="0.5" min="0" value="${d.offerPrice || ''}">
+          <button type="button" class="submit-like" id="sendReplyBtn">Pošlji odgovor</button>
+        </div>
+      </div>
+
+      <div class="order-section">
+        <h3>🖼️ Pošlji predogled designa</h3>
+        <p class="note" style="margin:0 0 4px;">Naloži DXF s finalnim designom — samodejno se pretvori v sliko z vodnim žigom in pošlje stranki z gumbom za odobritev.</p>
+        <div class="design-drop" id="designDrop">
+          Klikni ali povleci DXF datoteko sem
+          <input type="file" id="designFileInput" accept=".dxf">
+        </div>
+        <div class="design-canvas-wrap" id="designCanvasWrap"></div>
+        <div class="order-row" style="display:none;" id="designSendRow">
+          <button type="button" class="submit-like" id="sendDesignBtn">Pošlji predogled stranki</button>
+        </div>
+      </div>
+    `;
+
+    $('sendReplyBtn').addEventListener('click', () => sendReply(id));
+    $('designDrop').addEventListener('click', () => $('designFileInput').click());
+    $('designFileInput').addEventListener('change', e => { if (e.target.files[0]) handleDesignFile(id, e.target.files[0]); });
+  }
+
+  async function sendReply(id){
+    const btn = $('sendReplyBtn');
+    const price = parseFloat($('replyPrice').value);
+    const message = $('replyMessage').value.trim();
+    if (!(price > 0)){ $('replyPrice').focus(); return; }
+    if (!window.emailjs || EMAILJS_REPLY_TEMPLATE_ID.startsWith('TODO')){
+      alert('EmailJS predloga za odgovor še ni nastavljena.'); return;
+    }
+    const snap = await firestoreDb.collection('inquiries').doc(id).get();
+    const d = snap.data();
+    btn.disabled = true; btn.textContent = 'Pošiljam...';
+    try {
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_REPLY_TEMPLATE_ID, {
+        to_email: d.customerEmail, customer_name: d.customerName,
+        final_price: price.toLocaleString('sl-SI', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €',
+        message: message || '—'
+      });
+      const entry = { type:'reply_sent', at: firebase.firestore.Timestamp.now(), price, message: message || null };
+      await firestoreDb.collection('inquiries').doc(id).update({
+        offerPrice: price,
+        timeline: firebase.firestore.FieldValue.arrayUnion(entry)
+      });
+      openOrderModal(id);
+    } catch (e){
+      console.error('Reply email failed:', e);
+      alert('Pošiljanje ni uspelo — glej konzolo (F12).');
+      btn.disabled = false; btn.textContent = 'Pošlji odgovor';
+    }
+  }
+
+  function renderDxfToCanvas(subGeos, watermarkText){
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    subGeos.forEach(g => {
+      minX = Math.min(minX, g.minX); minY = Math.min(minY, g.minY);
+      maxX = Math.max(maxX, g.maxX); maxY = Math.max(maxY, g.maxY);
+    });
+    const w = maxX - minX, h = maxY - minY;
+    const pad = Math.max(w, h) * 0.08 || 5;
+    const targetSize = 900;
+    const scale = targetSize / Math.max(w + 2*pad, h + 2*pad);
+    const cw = Math.max(1, Math.round((w + 2*pad) * scale)), ch = Math.max(1, Math.round((h + 2*pad) * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = Math.max(1, scale * 0.6); ctx.lineJoin = 'round';
+    subGeos.forEach(g => {
+      g.segments.forEach(seg => {
+        ctx.beginPath();
+        seg.forEach(([x,y], i) => {
+          const px = (x - minX + pad) * scale, py = ch - (y - minY + pad) * scale;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+      });
+    });
+    // repeating diagonal watermark
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = '#c88a4a';
+    ctx.font = `bold ${Math.max(14, Math.round(cw * 0.045))}px sans-serif`;
+    ctx.translate(cw/2, ch/2); ctx.rotate(-Math.PI/6); ctx.translate(-cw/2, -ch/2);
+    const stepX = cw * 0.5, stepY = ch * 0.3;
+    for (let yy = -ch; yy < ch*2; yy += stepY){
+      for (let xx = -cw; xx < cw*2; xx += stepX){ ctx.fillText(watermarkText, xx, yy); }
+    }
+    ctx.restore();
+    return canvas;
+  }
+
+  function handleDesignFile(id, file){
+    if (!file.name.toLowerCase().endsWith('.dxf')){ alert('Prosim izberi .dxf datoteko.'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const entities = parseDXF(e.target.result);
+        const subGeos = processEntities(entities);
+        if (!subGeos || !subGeos.length){ alert('V datoteki ni geometrije.'); return; }
+        const canvas = renderDxfToCanvas(subGeos, WATERMARK_TEXT);
+        const wrap = $('designCanvasWrap');
+        wrap.innerHTML = '';
+        wrap.appendChild(canvas);
+        canvas.dataset.ready = '1';
+        $('designSendRow').style.display = 'flex';
+        $('sendDesignBtn').onclick = () => sendDesignPreview(id, canvas);
+      } catch (err){
+        alert('Napaka pri branju DXF: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async function sendDesignPreview(id, canvas){
+    if (!window.emailjs || EMAILJS_DESIGN_TEMPLATE_ID.startsWith('TODO')){
+      alert('EmailJS predloga za predogled designa še ni nastavljena.'); return;
+    }
+    const btn = $('sendDesignBtn');
+    btn.disabled = true; btn.textContent = 'Pošiljam...';
+    try {
+      const snap = await firestoreDb.collection('inquiries').doc(id).get();
+      const d = snap.data();
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.92));
+      const path = `design-previews/${id}-${Date.now()}.png`;
+      const ref = firebase.storage().ref().child(path);
+      await ref.put(blob);
+      const imageUrl = await ref.getDownloadURL();
+
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_DESIGN_TEMPLATE_ID, {
+        to_email: d.customerEmail, customer_name: d.customerName,
+        image_url: imageUrl, approve_link: getApproveLink(id)
+      });
+
+      const entry = { type:'design_uploaded', at: firebase.firestore.Timestamp.now(), imageUrl };
+      await firestoreDb.collection('inquiries').doc(id).update({
+        timeline: firebase.firestore.FieldValue.arrayUnion(entry)
+      });
+      openOrderModal(id);
+    } catch (e){
+      console.error('Design preview send failed:', e);
+      alert('Pošiljanje ni uspelo — glej konzolo (F12).');
+      btn.disabled = false; btn.textContent = 'Pošlji predogled stranki';
     }
   }
 
