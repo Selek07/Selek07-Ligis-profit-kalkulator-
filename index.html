@@ -200,6 +200,67 @@
   }
   .markup-row .mr-remove:hover{ color: var(--warn); }
 
+  /* ---------- auth / sidebar / views ---------- */
+  .login-screen{
+    position: fixed; inset: 0; z-index: 500; background: var(--bg);
+    display:flex; align-items:center; justify-content:center; padding: 20px;
+  }
+  .login-screen.hidden{ display:none; }
+  .login-box{
+    width: 100%; max-width: 340px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 26px 24px;
+  }
+  .login-box .kicker{ color: var(--wood); font-family: var(--mono); font-size: 12px; margin-bottom: 6px; }
+  .login-box h1{ font-size: 20px; margin: 0 0 18px; }
+  .login-box .field{ margin-bottom: 14px; }
+  .login-box input{
+    width:100%; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    padding: 10px 11px; border-radius: 4px; font-size: 14.5px;
+  }
+  .login-box input:focus{ outline:none; border-color: var(--wood-dim); }
+  .login-btn{
+    width:100%; background: var(--wood); border:none; color:#211a10; font-weight:650;
+    padding: 12px; border-radius: 5px; font-size: 14.5px; cursor:pointer; margin-top: 4px;
+  }
+  .login-btn:hover{ background:#d69a5a; }
+  .login-msg{
+    font-size: 12.5px; color: var(--warn); margin-top: 10px; min-height: 1em;
+  }
+
+  .app-sidebar{
+    position: fixed; top:0; left:0; bottom:0; width: 56px; background: var(--panel);
+    border-right: 1px solid var(--line); display:flex; flex-direction:column; align-items:center;
+    padding: 16px 0; gap: 10px; z-index: 100;
+  }
+  .app-sidebar.hidden{ display:none; }
+  .sidebar-btn{
+    width: 38px; height: 38px; border-radius: 6px; background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); font-size: 18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .sidebar-btn:hover{ background: var(--panel-2); color: var(--text); }
+  .sidebar-btn.active{ background: rgba(200,138,74,0.14); border-color: var(--wood-dim); color: var(--wood); }
+  .sidebar-btn.logout{ margin-top: auto; color: var(--text-dim); }
+  .sidebar-btn.logout:hover{ color: var(--warn); }
+
+  body.with-sidebar{ padding-left: 74px; }
+  .app-view.hidden{ display:none; }
+
+  .inquiry-card{
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .inquiry-card .ihead{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom: 10px; }
+  .inquiry-card .idate{ font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); }
+  .inquiry-card .iname{ font-size: 16px; font-weight: 650; }
+  .inquiry-card .irow{ font-size: 13.5px; margin-bottom: 6px; }
+  .inquiry-card .irow .k{ color: var(--text-dim); margin-right: 6px; }
+  .inquiry-card .iimages{ display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px; }
+  .inquiry-card .iimages img{ width: 70px; height: 70px; object-fit:cover; border-radius:4px; border:1px solid var(--line); cursor:pointer; }
+  .inquiry-card select{
+    background: var(--bg); border: 1px solid var(--line); color: var(--text); padding: 6px 8px;
+    border-radius: 4px; font-size: 12.5px;
+  }
+
   .section-label{
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
     color: var(--wood-dim); font-weight: 600; margin-bottom: 12px;
@@ -281,6 +342,31 @@
 </style>
 </head>
 <body>
+
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="kicker">KALKULATOR LESA</div>
+    <h1>Prijava</h1>
+    <div class="field">
+      <label for="loginEmail">E-pošta</label>
+      <input type="email" id="loginEmail" autocomplete="username">
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label for="loginPassword">Geslo</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <button type="button" class="login-btn" id="loginBtn">Prijava</button>
+    <div class="login-msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<div class="app-sidebar hidden" id="appSidebar">
+  <button type="button" class="sidebar-btn active" data-view="calculatorView" title="Kalkulator">🧮</button>
+  <button type="button" class="sidebar-btn" data-view="inquiriesView" title="Povpraševanja">📥</button>
+  <button type="button" class="sidebar-btn logout" id="logoutBtn" title="Odjava">⏻</button>
+</div>
+
+<div id="calculatorView" class="app-view hidden">
 <div class="wrap">
 
   <header>
@@ -460,6 +546,19 @@
   </div>
 
 </div>
+</div>
+
+<div id="inquiriesView" class="app-view hidden">
+  <div class="wrap">
+    <header>
+      <div class="kicker">CUSTOM NAROČILA</div>
+      <h1>Povpraševanja</h1>
+      <p>Vsa povpraševanja, ki jih stranke oddajo prek naročilne strani, se pojavijo tukaj.</p>
+    </header>
+    <div id="inquiriesList"></div>
+    <p class="note" id="inquiriesEmpty" style="display:none;">Trenutno ni povpraševanj.</p>
+  </div>
+</div>
 
 <div class="preview-modal hidden" id="previewModal">
   <button type="button" class="preview-modal-close" id="previewModalClose" title="Zapri">✕</button>
@@ -468,6 +567,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
   // Firebase config from the Firebase console — public by design for a client-side
   // web app; access is controlled via Firestore security rules, not by secrecy.
@@ -480,10 +580,11 @@
     appId: "1:541619453249:web:0bcaac48e7d5db072775c0",
     measurementId: "G-7WLG95L7YX"
   };
-  let firestoreDb = null;
+  let firestoreDb = null, firebaseAuth = null;
   try {
     firebase.initializeApp(firebaseConfig);
     firestoreDb = firebase.firestore();
+    firebaseAuth = firebase.auth();
   } catch (e){ console.error('Firebase init failed:', e); }
 </script>
 <script>
@@ -1638,6 +1739,113 @@
     });
   }
 
+})();
+</script>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const loginScreen = $('loginScreen'), loginEmail = $('loginEmail'), loginPassword = $('loginPassword'),
+        loginBtn = $('loginBtn'), loginMsg = $('loginMsg');
+  const appSidebar = $('appSidebar'), logoutBtn = $('logoutBtn');
+  const views = { calculatorView: $('calculatorView'), inquiriesView: $('inquiriesView') };
+  const inquiriesList = $('inquiriesList'), inquiriesEmpty = $('inquiriesEmpty');
+
+  function showView(id){
+    Object.keys(views).forEach(k => views[k].classList.toggle('hidden', k !== id));
+    appSidebar.querySelectorAll('.sidebar-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+    if (id === 'inquiriesView') loadInquiries();
+  }
+  appSidebar.querySelectorAll('.sidebar-btn[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => showView(btn.dataset.view));
+  });
+
+  async function doLogin(){
+    loginMsg.textContent = '';
+    const email = loginEmail.value.trim(), pass = loginPassword.value;
+    if (!email || !pass){ loginMsg.textContent = 'Vnesi e-pošto in geslo.'; return; }
+    loginBtn.disabled = true; loginBtn.textContent = 'Prijavljam...';
+    try {
+      await firebaseAuth.signInWithEmailAndPassword(email, pass);
+    } catch (err){
+      loginMsg.textContent = 'Napačna e-pošta ali geslo.';
+    } finally {
+      loginBtn.disabled = false; loginBtn.textContent = 'Prijava';
+    }
+  }
+  loginBtn.addEventListener('click', doLogin);
+  loginPassword.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  logoutBtn.addEventListener('click', () => firebaseAuth.signOut());
+
+  if (firebaseAuth){
+    firebaseAuth.onAuthStateChanged(user => {
+      if (user){
+        loginScreen.classList.add('hidden');
+        appSidebar.classList.remove('hidden');
+        document.body.classList.add('with-sidebar');
+        showView('calculatorView');
+      } else {
+        loginScreen.classList.remove('hidden');
+        appSidebar.classList.add('hidden');
+        document.body.classList.remove('with-sidebar');
+        Object.values(views).forEach(v => v.classList.add('hidden'));
+      }
+    });
+  }
+
+  const STATUS_OPTIONS = ['novo', 'v obdelavi', 'zaključeno'];
+  function fmtDate(ts){
+    if (!ts || !ts.toDate) return '';
+    return ts.toDate().toLocaleString('sl-SI', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+  function escapeHtmlLocal(s){
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function loadInquiries(){
+    inquiriesList.innerHTML = '<p class="note">Nalagam...</p>';
+    try {
+      const snap = await firestoreDb.collection('inquiries').orderBy('createdAt', 'desc').get();
+      if (snap.empty){
+        inquiriesList.innerHTML = '';
+        inquiriesEmpty.style.display = 'block';
+        return;
+      }
+      inquiriesEmpty.style.display = 'none';
+      inquiriesList.innerHTML = snap.docs.map(doc => {
+        const d = doc.data();
+        const images = (d.imageUrls || []).map(u => `<img src="${u}" onclick="window.open('${u}','_blank')">`).join('');
+        return `<div class="inquiry-card" data-id="${doc.id}">
+          <div class="ihead">
+            <div>
+              <div class="iname">${escapeHtmlLocal(d.customerName || '—')}</div>
+              <div class="idate">${fmtDate(d.createdAt)}</div>
+            </div>
+            <select data-id="${doc.id}">
+              ${STATUS_OPTIONS.map(s => `<option value="${s}" ${d.status===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="irow"><span class="k">Predloga:</span>${escapeHtmlLocal(d.template)}</div>
+          ${d.wishName ? `<div class="irow"><span class="k">Besedilo:</span>${escapeHtmlLocal(d.wishName)}</div>` : ''}
+          ${(d.widthCm || d.heightCm) ? `<div class="irow"><span class="k">Mere:</span>${d.widthCm||'?'} × ${d.heightCm||'?'} cm</div>` : ''}
+          ${d.description ? `<div class="irow"><span class="k">Opis:</span>${escapeHtmlLocal(d.description)}</div>` : ''}
+          <div class="irow"><span class="k">Ocena:</span>${escapeHtmlLocal(d.estimateText)}</div>
+          <div class="irow"><span class="k">Kontakt:</span>${escapeHtmlLocal(d.customerEmail)}${d.customerPhone ? ' · ' + escapeHtmlLocal(d.customerPhone) : ''}</div>
+          ${images ? `<div class="iimages">${images}</div>` : ''}
+        </div>`;
+      }).join('');
+
+      inquiriesList.querySelectorAll('select[data-id]').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          try { await firestoreDb.collection('inquiries').doc(sel.dataset.id).update({ status: sel.value }); }
+          catch (e){ console.error('Status update failed:', e); }
+        });
+      });
+    } catch (err){
+      inquiriesList.innerHTML = '<p class="note">Napaka pri nalaganju povpraševanj: ' + escapeHtmlLocal(err.message) + '</p>';
+    }
+  }
 })();
 </script>
 </body>
