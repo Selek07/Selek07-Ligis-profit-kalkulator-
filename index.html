@@ -148,6 +148,9 @@
   }
   .mode-btn.active{ background: rgba(200,138,74,0.14); border-color: var(--wood-dim); color: var(--wood); }
 
+  .nest-toolbar{ display:flex; gap: 8px; margin-bottom: 10px; }
+  .nest-toolbar .btn-outline{ flex:1; padding: 9px 8px; font-size: 12.5px; }
+
   .file-list{ margin-top: 10px; display:flex; flex-direction:column; gap: 6px; }
   .file-item{
     display:flex; align-items:center; justify-content:space-between; gap: 8px;
@@ -360,7 +363,12 @@
       <button type="button" class="mode-btn active" data-mode="outline">Zunanji outline</button>
       <button type="button" class="mode-btn" data-mode="bbox">Box okoli DXF</button>
     </div>
-    <p class="note" id="dragHint" style="margin-top:-8px; margin-bottom:14px;">Kose lahko povlečeš z miško po plošči, da jih razporediš.</p>
+    <div class="nest-toolbar">
+      <button type="button" class="btn-outline" id="nestBtn">🧩 Samodejno razporedi</button>
+      <button type="button" class="btn-outline" id="exportDxfBtn">⬇ Izvozi kot DXF</button>
+    </div>
+    <p class="note" id="dragHint" style="margin-top:-4px; margin-bottom:14px;">Kose lahko povlečeš z miško po plošči, da jih razporediš.</p>
+    <div class="warnbox" id="nestOverflowWarn">Nekaj kosov ne gre skupaj na delovno površino — postavljeni so pod njo (viden negativen odmik); ročno jih prestavi ali zmanjšaj razporeditev.</div>
 
     <div class="grid" style="gap:16px;">
       <div>
@@ -535,6 +543,7 @@
   const dropzone = $('dropzone'), fileInput = $('fileInput'), fileListEl = $('fileList'), addFileBtn = $('addFileBtn'), errbox = $('errbox');
   const manualW = $('manualW'), manualH = $('manualH'), manualName = $('manualName'), addManualPartBtn = $('addManualPart');
   const results = $('results'), preview = $('preview'), overflowWarn = $('overflowWarn'), partsBreakdown = $('partsBreakdown'), dragHint = $('dragHint');
+  const nestBtn = $('nestBtn'), exportDxfBtn = $('exportDxfBtn'), nestOverflowWarn = $('nestOverflowWarn');
   const presetSelect = $('presetSelect'), presetName = $('presetName'), savePresetBtn = $('savePreset'), deletePresetBtn = $('deletePreset');
   const modeButtons = Array.from(document.querySelectorAll('.mode-btn'));
   const legendBox = $('legendBox');
@@ -804,6 +813,29 @@
     return chains;
   }
 
+  function clusterChains(chains, tolerance){
+    const n = chains.length;
+    const parent = Array.from({ length: n }, (_, i) => i);
+    function find(x){ while (parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+    function union(a,b){ const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
+    function overlaps(b1, b2, pad){
+      return !(b1.maxX + pad < b2.minX || b2.maxX + pad < b1.minX ||
+               b1.maxY + pad < b2.minY || b2.maxY + pad < b1.minY);
+    }
+    const pad = Math.max(tolerance, 0.01);
+    for (let i = 0; i < n; i++){
+      for (let j = i + 1; j < n; j++){
+        if (overlaps(chains[i].bbox, chains[j].bbox, pad)) union(i, j);
+      }
+    }
+    const groups = {};
+    chains.forEach((c, i) => {
+      const r = find(i);
+      (groups[r] = groups[r] || []).push(c);
+    });
+    return Object.values(groups);
+  }
+
   function processEntities(entities){
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const allSegments = []; // for drawing full outline (open + closed)
@@ -857,23 +889,35 @@
     // separate entities (lines/arcs/splines) into one continuous outline
     const tolerance = Math.max((extentW + extentH) / 2 * 0.0008, 0.01);
 
-    const chains = chainSegments(allSegments, tolerance);
-    const closedChains = chains
-      .filter(c => c.closed && c.pts.length >= 3)
-      .map(c => ({ pts: c.pts, area: shoelaceArea(c.pts) }))
-      .sort((a,b) => b.area - a.area);
+    const chains = chainSegments(allSegments, tolerance).map(c => ({
+      pts: c.pts, closed: c.closed, bbox: bboxOf(c.pts)
+    }));
 
-    // material used = area enclosed by the single outermost closed contour only.
-    // inner contours (engraving details, decorative lines, holes, etc.) are ignored
-    // for cost purposes: everything inside the outer silhouette is already
-    // offcut/waste, not extra sheet area you need to buy.
-    const netArea = closedChains.length ? closedChains[0].area : 0;
+    // Group chains into separate physical shapes by spatial proximity: chains
+    // whose bounding boxes overlap or touch (e.g. a letter's outer boundary and
+    // its inner hole, like "O") belong together; chains with a real gap between
+    // them (e.g. separate letters "N" "E" "J" "C") are split into distinct parts.
+    const clusters = clusterChains(chains, tolerance);
 
-    return {
-      minX, minY, maxX, maxY,
-      extentW, extentH,
-      netArea, segments: allSegments, loops: closedChains
-    };
+    return clusters.map(clusterChains => {
+      let cMinX = Infinity, cMinY = Infinity, cMaxX = -Infinity, cMaxY = -Infinity;
+      const loops = [];
+      clusterChains.forEach(c => {
+        cMinX = Math.min(cMinX, c.bbox.minX); cMinY = Math.min(cMinY, c.bbox.minY);
+        cMaxX = Math.max(cMaxX, c.bbox.maxX); cMaxY = Math.max(cMaxY, c.bbox.maxY);
+        if (c.closed && c.pts.length >= 3) loops.push({ pts: c.pts, area: shoelaceArea(c.pts) });
+      });
+      loops.sort((a,b) => b.area - a.area);
+      // material used = area of this shape's single outermost closed contour only;
+      // inner contours (a letter's counter/hole, decorative lines, etc.) don't add
+      // extra sheet area you need to buy.
+      const netArea = loops.length ? loops[0].area : 0;
+      return {
+        minX: cMinX, minY: cMinY, maxX: cMaxX, maxY: cMaxY,
+        extentW: cMaxX - cMinX, extentH: cMaxY - cMinY,
+        netArea, segments: clusterChains.map(c => c.pts), loops
+      };
+    });
   }
 
   function fmt(n, d){
@@ -1104,6 +1148,223 @@
     }
   }
 
+  // ---------- true outline-based nesting (rasterized silhouette, not bounding box) ----------
+  function rotatePoint(x, y, cx, cy, rad){
+    const dx = x - cx, dy = y - cy, cos = Math.cos(rad), sin = Math.sin(rad);
+    return [cx + dx*cos - dy*sin, cy + dx*sin + dy*cos];
+  }
+
+  // Returns a new geo with every point rotated by angleDeg around the shape's own
+  // center - extents/loops/segments recomputed, area stays exact (rotation-invariant).
+  function rotateGeo(geo, angleDeg){
+    const norm = ((angleDeg % 360) + 360) % 360;
+    if (norm === 0) return geo;
+    const rad = norm * Math.PI / 180;
+    const cx = (geo.minX + geo.maxX) / 2, cy = (geo.minY + geo.maxY) / 2;
+    const rotPts = pts => pts.map(([x,y]) => rotatePoint(x, y, cx, cy, rad));
+    const segments = geo.segments.map(rotPts);
+    const loops = geo.loops.map(l => ({ pts: rotPts(l.pts), area: l.area }));
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    segments.forEach(seg => seg.forEach(([x,y]) => {
+      if (x<minX) minX=x; if (x>maxX) maxX=x; if (y<minY) minY=y; if (y>maxY) maxY=y;
+    }));
+    return { minX, minY, maxX, maxY, extentW: maxX-minX, extentH: maxY-minY, netArea: geo.netArea, segments, loops };
+  }
+
+  function pointInLoops(px, py, loops){
+    let inside = false;
+    for (const loop of loops){
+      const pts = loop.pts;
+      let j = pts.length - 1;
+      for (let i = 0; i < pts.length; i++){
+        const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)){
+          inside = !inside;
+        }
+        j = i;
+      }
+    }
+    return inside;
+  }
+
+  function dilateMask(mask, cols, rows, k){
+    if (k <= 0) return mask;
+    const out = new Uint8Array(cols * rows);
+    for (let y = 0; y < rows; y++){
+      for (let x = 0; x < cols; x++){
+        if (!mask[y*cols+x]) continue;
+        const y0 = Math.max(0,y-k), y1 = Math.min(rows-1,y+k);
+        const x0 = Math.max(0,x-k), x1 = Math.min(cols-1,x+k);
+        for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) out[yy*cols+xx] = 1;
+      }
+    }
+    return out;
+  }
+
+  function rasterizePart(geo, cell, kerfCells){
+    const cols = Math.max(1, Math.ceil(geo.extentW / cell));
+    const rows = Math.max(1, Math.ceil(geo.extentH / cell));
+    const mask = new Uint8Array(cols * rows);
+    if (geo.loops && geo.loops.length){
+      for (let ry = 0; ry < rows; ry++){
+        const py = geo.minY + (ry + 0.5) * cell;
+        for (let rx = 0; rx < cols; rx++){
+          const px = geo.minX + (rx + 0.5) * cell;
+          if (pointInLoops(px, py, geo.loops)) mask[ry*cols+rx] = 1;
+        }
+      }
+    } else {
+      mask.fill(1); // no closed outline detected - fall back to solid bounding box
+    }
+    return { mask: dilateMask(mask, cols, rows, kerfCells), cols, rows };
+  }
+
+  // ---------- automatic nesting: tries multiple rotations of each part's real
+  // silhouette and slides it snugly against neighbours/walls for a tight pack ----------
+  function autoNest(){
+    const bw = parseFloat(bedW.value), bh = parseFloat(bedH.value);
+    nestOverflowWarn.style.display = 'none';
+    if (!(bw > 0 && bh > 0) || !parts.length) return;
+
+    const cell = Math.max(1.5, Math.max(bw, bh) / 350);        // grid resolution (mm/cell)
+    const bedCols = Math.max(1, Math.ceil(bw / cell));
+    const bedRows = Math.max(1, Math.ceil(bh / cell));
+    const bedGrid = new Uint8Array(bedCols * bedRows);
+    const kerfCells = Math.max(1, Math.round(3 / cell));        // ~3mm clearance between parts
+
+    // finer rotation search for fewer parts (still fast), coarser as part count grows
+    const rotStep = parts.length <= 4 ? 15 : parts.length <= 10 ? 30 : parts.length <= 20 ? 45 : 90;
+    const rotations = [];
+    for (let a = 0; a < 360; a += rotStep) rotations.push(a);
+
+    function fits(mask, cols, rows, gx, gy){
+      if (gx < 0 || gy < 0 || gx + cols > bedCols || gy + rows > bedRows) return false;
+      for (let y = 0; y < rows; y++){
+        const rowBase = (gy + y) * bedCols, maskRowBase = y * cols;
+        for (let x = 0; x < cols; x++){
+          if (mask[maskRowBase + x] && bedGrid[rowBase + gx + x]) return false;
+        }
+      }
+      return true;
+    }
+    function stamp(mask, cols, rows, gx, gy){
+      for (let y = 0; y < rows; y++){
+        const rowBase = (gy + y) * bedCols, maskRowBase = y * cols;
+        for (let x = 0; x < cols; x++){
+          if (mask[maskRowBase + x]) bedGrid[rowBase + gx + x] = 1;
+        }
+      }
+    }
+    // greedy gravity: slide left then down (repeated) until the part touches
+    // something or the wall - pulls pieces snugly together instead of leaving
+    // them at the first loosely-fitting spot found by the scan
+    function slideToRest(mask, cols, rows, gx, gy){
+      let moved = true, rounds = 0;
+      while (moved && rounds < 10){
+        moved = false; rounds++;
+        while (gx > 0 && fits(mask, cols, rows, gx - 1, gy)){ gx--; moved = true; }
+        while (gy > 0 && fits(mask, cols, rows, gx, gy - 1)){ gy--; moved = true; }
+      }
+      return [gx, gy];
+    }
+
+    function findBestPlacement(geoVariants){
+      // geoVariants: [{geo, mask, cols, rows}, ...] one per rotation candidate.
+      // Returns the candidate with the lowest, then leftmost, resting position.
+      let best = null;
+      geoVariants.forEach(v => {
+        const stepX = Math.max(1, Math.floor(v.cols / 12));
+        const stepY = Math.max(1, Math.floor(v.rows / 12));
+        let found = null;
+        for (let gy = 0; gy <= bedRows - v.rows && !found; gy += stepY){
+          for (let gx = 0; gx <= bedCols - v.cols && !found; gx += stepX){
+            if (fits(v.mask, v.cols, v.rows, gx, gy)) found = [gx, gy];
+          }
+        }
+        if (!found){
+          let tries = 0;
+          scan:
+          for (let gy = 0; gy <= bedRows - v.rows; gy++){
+            for (let gx = 0; gx <= bedCols - v.cols; gx++){
+              if (++tries > 25000) break scan;
+              if (fits(v.mask, v.cols, v.rows, gx, gy)){ found = [gx, gy]; break scan; }
+            }
+          }
+        }
+        if (!found) return;
+        const [rx, ry] = slideToRest(v.mask, v.cols, v.rows, found[0], found[1]);
+        const cost = ry * bedCols + rx; // prefer lowest, then leftmost resting spot
+        if (!best || cost < best.cost) best = { variant: v, gx: rx, gy: ry, cost };
+      });
+      return best;
+    }
+
+    const ordered = parts.slice().sort((a,b) => b.geo.netArea - a.geo.netArea);
+    let anyUnplaced = false, fallbackStack = 0;
+
+    ordered.forEach(part => {
+      const variants = rotations.map(angle => {
+        const geo = rotateGeo(part.geo, angle);
+        const { mask, cols, rows } = rasterizePart(geo, cell, kerfCells);
+        return { geo, mask, cols, rows };
+      });
+      const best = findBestPlacement(variants);
+      if (best){
+        stamp(best.variant.mask, best.variant.cols, best.variant.rows, best.gx, best.gy);
+        part.geo = best.variant.geo;      // bake in the winning rotation
+        part.xmm = best.gx * cell;
+        part.ymm = best.gy * cell;
+      } else {
+        anyUnplaced = true;
+        part.xmm = 0;
+        part.ymm = -(fallbackStack) - part.geo.extentH;
+        fallbackStack += part.geo.extentH + 10;
+      }
+    });
+
+    if (anyUnplaced) nestOverflowWarn.style.display = 'block';
+    drawPreview();
+  }
+
+  // ---------- export current layout as a DXF file ----------
+  function sanitizeLayerName(name){
+    return (String(name || 'DEL').replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 31)) || 'DEL';
+  }
+
+  function generateDXFContent(){
+    let out = '0\nSECTION\n2\nENTITIES\n';
+    parts.forEach(part => {
+      const geo = part.geo;
+      const layer = sanitizeLayerName(part.name);
+      geo.segments.forEach(seg => {
+        if (seg.length < 2) return;
+        const closed = seg.length > 2 &&
+          Math.hypot(seg[0][0]-seg[seg.length-1][0], seg[0][1]-seg[seg.length-1][1]) < 1e-6;
+        const pts = closed ? seg.slice(0, -1) : seg;
+        if (pts.length < 2) return;
+        out += `0\nLWPOLYLINE\n8\n${layer}\n90\n${pts.length}\n70\n${closed ? 1 : 0}\n43\n0\n`;
+        pts.forEach(([x,y]) => {
+          const wx = (x - geo.minX) + part.xmm;
+          const wy = (y - geo.minY) + part.ymm;
+          out += `10\n${wx.toFixed(4)}\n20\n${wy.toFixed(4)}\n`;
+        });
+      });
+    });
+    out += '0\nENDSEC\n0\nEOF\n';
+    return out;
+  }
+
+  function downloadDXF(){
+    if (!parts.length) return;
+    const content = generateDXFContent();
+    const blob = new Blob([content], { type: 'application/dxf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'razporeditev.dxf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function makeRectGeo(w, h){
     const pts = [[0,0],[w,0],[w,h],[0,h]];
     return {
@@ -1154,14 +1415,24 @@
     reader.onload = e => {
       try {
         const entities = parseDXF(e.target.result);
-        const geo = processEntities(entities);
-        if (!geo){
+        const subGeos = processEntities(entities);
+        if (!subGeos || !subGeos.length){
           errbox.textContent = 'V datoteki "' + file.name + '" ni bilo mogoče najti nobene geometrije (LINE, LWPOLYLINE, POLYLINE, CIRCLE, ARC).';
           errbox.style.display = 'block';
           return;
         }
         errbox.style.display = 'none';
-        addPart(file, geo);
+        if (subGeos.length === 1){
+          addPart(file, subGeos[0]);
+        } else {
+          // multiple spatially-separate shapes found in one file (e.g. individual
+          // letters of a word) - add each as its own independently nestable part
+          subGeos
+            .sort((a,b) => a.minX - b.minX) // roughly left-to-right, like reading order
+            .forEach((geo, i) => {
+              addPart({ name: `${file.name} — kos ${i + 1}/${subGeos.length}` }, geo);
+            });
+        }
       } catch (err){
         errbox.textContent = 'Napaka pri branju datoteke "' + file.name + '": ' + err.message;
         errbox.style.display = 'block';
@@ -1176,6 +1447,16 @@
 
   dropzone.addEventListener('click', () => fileInput.click());
   addFileBtn.addEventListener('click', () => fileInput.click());
+  nestBtn.addEventListener('click', () => {
+    const original = nestBtn.textContent;
+    nestBtn.disabled = true;
+    nestBtn.textContent = '⏳ Računam...';
+    setTimeout(() => {
+      try { autoNest(); }
+      finally { nestBtn.textContent = original; nestBtn.disabled = false; }
+    }, 20);
+  });
+  exportDxfBtn.addEventListener('click', downloadDXF);
   addManualPartBtn.addEventListener('click', () => {
     const w = parseFloat(manualW.value), h = parseFloat(manualH.value);
     if (!(w > 0 && h > 0)){ (w > 0 ? manualH : manualW).focus(); return; }
