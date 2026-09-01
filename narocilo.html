@@ -204,10 +204,10 @@
   const db = firebase.firestore();
   const storage = firebase.storage();
 
-  // ---- TODO: replace with your real EmailJS values once the account is set up ----
-  const EMAILJS_PUBLIC_KEY = 'TODO_PUBLIC_KEY';
-  const EMAILJS_SERVICE_ID = 'TODO_SERVICE_ID';
-  const EMAILJS_TEMPLATE_ID = 'TODO_TEMPLATE_ID';
+  // ---- EmailJS (Gmail "selnejc07@gmail.com" service) ----
+  const EMAILJS_PUBLIC_KEY = 'd_8Lv-N4YHCjTubXx';
+  const EMAILJS_SERVICE_ID = 'service_w2fe6be';
+  const EMAILJS_TEMPLATE_ID = 'template_w1xh3bd';
   try { if (window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch(e){}
 
   // ---- rough estimate pricing (edit these to match your real numbers) ----
