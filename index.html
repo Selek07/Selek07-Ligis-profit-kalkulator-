@@ -2001,12 +2001,14 @@
 
         newOrdersDropdown.classList.toggle('hidden', rows.length === 0);
         newOrdersDropdown.innerHTML = rows.length === 0 ? '' : `
-          <div class="no-header">📥 ${rows.length} novih naročil</div>
-          ${rows.map(r => `
-            <div class="no-row ${r.priority ? 'no-priority' : ''}" data-id="${r.id}">
-              ${r.priority ? '⚡ ' : ''}<span class="no-name">${escapeHtmlLocal(r.customerName || '—')}</span>
-              <span class="no-tpl">${escapeHtmlLocal(r.template || '')}</span>
-            </div>`).join('')}`;
+          <div class="no-pill">📥 ${rows.length} novih naročil</div>
+          <div class="no-list">
+            ${rows.map(r => `
+              <div class="no-row ${r.priority ? 'no-priority' : ''}" data-id="${r.id}">
+                ${r.priority ? '⚡ ' : ''}<span class="no-name">${escapeHtmlLocal(r.customerName || '—')}</span>
+                <span class="no-tpl">${escapeHtmlLocal(r.template || '')}</span>
+              </div>`).join('')}
+          </div>`;
         newOrdersDropdown.querySelectorAll('.no-row').forEach(row => {
           row.addEventListener('click', () => {
             showView('inquiriesView');
