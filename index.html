@@ -349,6 +349,14 @@
   .design-canvas-wrap{ margin-top: 10px; text-align:center; }
   .design-canvas-wrap canvas{ max-width:100%; border-radius:4px; border:1px solid var(--line); }
 
+  .img-list{ display:flex; flex-wrap:wrap; gap: 8px; margin-top: 10px; }
+  .img-list .thumb-wrap{ position:relative; width: 70px; height:70px; border-radius:4px; overflow:hidden; border:1px solid var(--line); }
+  .img-list .thumb-wrap img{ width:100%; height:100%; object-fit:cover; }
+  .img-list .thumb-wrap button{
+    position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none;
+    background: rgba(0,0,0,0.7); color:#fff; font-size:11px; cursor:pointer; line-height:1; padding:0;
+  }
+
   .priority-corner-wrap{ position: fixed; top: 14px; right: 14px; z-index: 300; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
 
   .no-pill, .priority-corner{
@@ -672,6 +680,7 @@
       <h1>Povpraševanja</h1>
       <p>Vsa povpraševanja, ki jih stranke oddajo prek naročilne strani, se pojavijo tukaj.</p>
     </header>
+    <button type="button" class="btn-outline" id="addManualOrderBtn" style="margin-bottom:14px;">+ Dodaj naročilo ročno</button>
     <div id="inquiriesList"></div>
     <p class="note" id="inquiriesEmpty" style="display:none;">Trenutno ni povpraševanj.</p>
   </div>
@@ -718,6 +727,52 @@
   <div class="order-modal-inner">
     <button type="button" class="preview-modal-close" id="orderModalClose" title="Zapri">✕</button>
     <div id="orderModalBody">Nalagam...</div>
+  </div>
+</div>
+
+<div class="order-modal hidden" id="newOrderModal">
+  <div class="order-modal-inner">
+    <button type="button" class="preview-modal-close" id="newOrderModalClose" title="Zapri">✕</button>
+    <h2 style="margin-top:0;">Novo naročilo (ročni vnos)</h2>
+    <p class="note" style="margin:0 0 14px;">Za naročila, ki pridejo mimo spletnega obrazca (Instagram, telefon, osebno) — izpolni, kar veš, ostalo pusti prazno.</p>
+
+    <div class="field"><label for="noCustName">Ime stranke</label><input type="text" id="noCustName"></div>
+    <div class="row2">
+      <div class="field"><label for="noCustEmail">E-pošta</label><input type="email" id="noCustEmail"></div>
+      <div class="field"><label for="noCustPhone">Telefon</label><input type="tel" id="noCustPhone"></div>
+    </div>
+    <div class="field"><label for="noTemplate">Predloga / vir naročila</label><input type="text" id="noTemplate" placeholder="npr. Predloga 2, Instagram DM, Popolnoma custom ..."></div>
+    <div class="field"><label for="noWishName">Besedilo za topper</label><input type="text" id="noWishName"></div>
+    <div class="row2">
+      <div class="field"><label for="noWidth">Širina <span class="unit">cm</span></label><input type="number" id="noWidth" step="0.5" min="0"></div>
+      <div class="field"><label for="noHeight">Višina <span class="unit">cm</span></label><input type="number" id="noHeight" step="0.5" min="0"></div>
+    </div>
+    <div class="field"><label for="noDesc">Opis</label><textarea id="noDesc"></textarea></div>
+    <div class="row2">
+      <div class="field"><label for="noPrice">Cena <span class="unit">€ (neobvezno)</span></label><input type="number" id="noPrice" step="0.5" min="0"></div>
+      <div class="field">
+        <label for="noStatus">Status</label>
+        <select id="noStatus">
+          <option value="novo">novo</option>
+          <option value="v obdelavi">v obdelavi</option>
+          <option value="zaključeno">zaključeno</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label class="priority-check"><input type="checkbox" id="noPriority"><span>⚡ Prednostno naročilo</span></label>
+    </div>
+
+    <div class="field">
+      <label>Slike</label>
+      <div class="design-drop" id="noImageDrop">
+        Klikni ali povleci slike sem
+        <input type="file" id="noImageInput" accept="image/*" multiple>
+      </div>
+      <div class="img-list" id="noImgList"></div>
+    </div>
+
+    <button type="button" class="submit-like" id="noSubmitBtn" style="width:100%;">Shrani naročilo</button>
   </div>
 </div>
 
@@ -1925,6 +1980,7 @@
   const appSidebar = $('appSidebar'), logoutBtn = $('logoutBtn');
   const views = { calculatorView: $('calculatorView'), inquiriesView: $('inquiriesView'), insightsView: $('insightsView') };
   const inquiriesList = $('inquiriesList'), inquiriesEmpty = $('inquiriesEmpty');
+  const addManualOrderBtn = $('addManualOrderBtn');
   const priorityCorner = $('priorityCorner'), priorityCornerCount = $('priorityCornerCount');
   const newOrdersPill = $('newOrdersPill'), newOrdersCount = $('newOrdersCount');
   let priorityUnsub = null;
@@ -2118,6 +2174,85 @@
     const base = location.origin + location.pathname.replace(/[^\/]*$/, '');
     return base + 'odobri/?id=' + encodeURIComponent(id);
   }
+
+  // ---------- manual "add order" entry (for orders that come outside the web form) ----------
+  const newOrderModal = $('newOrderModal'), newOrderModalClose = $('newOrderModalClose');
+  const noImageDrop = $('noImageDrop'), noImageInput = $('noImageInput'), noImgList = $('noImgList'), noSubmitBtn = $('noSubmitBtn');
+  let noUploadedImages = []; // { file, previewUrl }
+
+  function openNewOrderModal(){
+    ['noCustName','noCustEmail','noCustPhone','noTemplate','noWishName','noWidth','noHeight','noDesc','noPrice'].forEach(id => { $(id).value = ''; });
+    $('noPriority').checked = false;
+    $('noStatus').value = 'novo';
+    noUploadedImages = [];
+    renderNoImgList();
+    newOrderModal.classList.remove('hidden');
+  }
+  addManualOrderBtn.addEventListener('click', openNewOrderModal);
+  newOrderModalClose.addEventListener('click', () => newOrderModal.classList.add('hidden'));
+  newOrderModal.addEventListener('click', e => { if (e.target === newOrderModal) newOrderModal.classList.add('hidden'); });
+
+  function renderNoImgList(){
+    noImgList.innerHTML = noUploadedImages.map((img,i) => `
+      <div class="thumb-wrap"><img src="${img.previewUrl}"><button type="button" data-idx="${i}">×</button></div>`).join('');
+    noImgList.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => { noUploadedImages.splice(parseInt(btn.dataset.idx,10),1); renderNoImgList(); });
+    });
+  }
+  noImageDrop.addEventListener('click', () => noImageInput.click());
+  noImageInput.addEventListener('change', e => {
+    Array.from(e.target.files).forEach(file => {
+      if (file.type.startsWith('image/')) noUploadedImages.push({ file, previewUrl: URL.createObjectURL(file) });
+    });
+    renderNoImgList();
+    noImageInput.value = '';
+  });
+
+  noSubmitBtn.addEventListener('click', async () => {
+    const customerName = $('noCustName').value.trim();
+    if (!customerName){ $('noCustName').focus(); return; }
+    noSubmitBtn.disabled = true; noSubmitBtn.textContent = 'Shranjujem...';
+    try {
+      const price = parseFloat($('noPrice').value);
+      const docRef = await firestoreDb.collection('inquiries').add({
+        template: $('noTemplate').value.trim() || 'Ročni vnos',
+        wishName: $('noWishName').value.trim(),
+        widthCm: parseFloat($('noWidth').value) || null,
+        heightCm: parseFloat($('noHeight').value) || null,
+        description: $('noDesc').value.trim(),
+        estimateText: price > 0 ? price.toFixed(2) + ' €' : '—',
+        estimateLow: price > 0 ? price : null,
+        estimateHigh: price > 0 ? price : null,
+        offerPrice: price > 0 ? price : null,
+        priority: $('noPriority').checked,
+        customerName,
+        customerEmail: $('noCustEmail').value.trim(),
+        customerPhone: $('noCustPhone').value.trim(),
+        imageUrls: [],
+        status: $('noStatus').value,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      if (noUploadedImages.length){
+        const urls = [];
+        for (const img of noUploadedImages){
+          const path = `inquiry-images/${docRef.id}-${Date.now()}-${img.file.name}`;
+          const ref = firebase.storage().ref().child(path);
+          await ref.put(img.file);
+          urls.push(await ref.getDownloadURL());
+        }
+        await docRef.update({ imageUrls: urls });
+      }
+
+      newOrderModal.classList.add('hidden');
+      loadInquiries();
+    } catch (e){
+      console.error('Manual order save failed:', e);
+      alert('Shranjevanje ni uspelo — glej konzolo (F12).');
+    } finally {
+      noSubmitBtn.disabled = false; noSubmitBtn.textContent = 'Shrani naročilo';
+    }
+  });
 
   async function openOrderModal(id){
     currentOrderId = id;
